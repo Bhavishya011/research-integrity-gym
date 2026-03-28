@@ -51,13 +51,22 @@ class SubmitVerdictPayload(BaseModel):
     verdict:        Verdict
     effect_size:    float
     p_value:        float
-    justification:  str = Field(..., max_length=2000)
+    justification:  str = Field(..., min_length=100, max_length=2000)
 
     @field_validator("p_value")
     @classmethod
     def p_value_in_range(cls, v: float) -> float:
         if not (0.0 <= v <= 1.0):
             raise ValueError("p_value must be between 0.0 and 1.0")
+        return v
+    
+    @field_validator("justification")
+    @classmethod
+    def justification_has_structure(cls, v: str) -> str:
+        # Require minimum word count to prevent keyword stuffing
+        word_count = len(v.split())
+        if word_count < 20:
+            raise ValueError("Justification must contain at least 20 words")
         return v
 
 

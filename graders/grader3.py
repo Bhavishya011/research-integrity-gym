@@ -15,6 +15,20 @@ _EXCLUSION_KEYWORDS = [
     "selective", "missing", "n=", "fewer participants", "hidden removal",
 ]
 
+# Minimum requirements to prevent gaming
+_MIN_JUSTIFICATION_WORDS = 20
+_MIN_UNIQUE_WORDS_RATIO = 0.4  # At least 40% unique words
+
+
+def _is_coherent_justification(justif: str) -> bool:
+    """Check if justification has basic coherence (not keyword stuffing)."""
+    words = justif.lower().split()
+    if len(words) < _MIN_JUSTIFICATION_WORDS:
+        return False
+    unique_words = set(words)
+    unique_ratio = len(unique_words) / len(words)
+    return unique_ratio >= _MIN_UNIQUE_WORDS_RATIO
+
 
 def grade_verdict(payload, ground_truth: dict) -> float:
     """
@@ -54,15 +68,18 @@ def grade_verdict(payload, ground_truth: dict) -> float:
     elif p_val > p_threshold * 0.8:
         score += 0.05
 
-    # 4. Exclusion detection (0.20) — hard boolean keyword check
-    if has_exclusion and any(kw in justif for kw in _EXCLUSION_KEYWORDS):
-        score += 0.20
+    # 4. Exclusion detection (0.20) — keyword check WITH coherence requirement
+    # Must have coherent justification (prevents keyword stuffing)
+    if has_exclusion and _is_coherent_justification(justif):
+        if any(kw in justif for kw in _EXCLUSION_KEYWORDS):
+            score += 0.20
 
-    # 5. Justification keyword quality (0.10)
-    hits = sum(1 for kw in req_keywords if kw in justif)
-    if hits >= req_count:
-        score += 0.10
-    elif hits == 1:
-        score += 0.05
+    # 5. Justification keyword quality (0.10) — only if coherent
+    if _is_coherent_justification(justif):
+        hits = sum(1 for kw in req_keywords if kw in justif)
+        if hits >= req_count:
+            score += 0.10
+        elif hits == 1:
+            score += 0.05
 
     return round(max(0.0, min(1.0, score)), 4)

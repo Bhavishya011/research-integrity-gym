@@ -1,3 +1,12 @@
+---
+title: Research Integrity Gym
+emoji: 🔬
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # Research Integrity Gym
 
 An [OpenEnv](https://github.com/openenv) environment where AI agents evaluate **scientific research integrity** — the verification half of science that no existing benchmark covers.

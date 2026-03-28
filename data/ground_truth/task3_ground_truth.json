@@ -1,0 +1,25 @@
+{
+  "dataset": "task3_clinical_trial.csv",
+  "task": "task3_claim_verify",
+  "claimed_effect": 1.88,
+  "claimed_p": 0.048,
+  "true_effect": 1.6,
+  "true_p": 0.075,
+  "true_verdict": "invalid",
+  "has_undisclosed_exclusion": true,
+  "n_excluded": 14,
+  "full_n": 150,
+  "analysed_n": 136,
+  "effect_tolerance": 0.5,
+  "p_threshold": 0.05,
+  "required_keywords": [
+    "exclusion",
+    "excluded",
+    "outlier",
+    "removed",
+    "undisclosed",
+    "n=",
+    "missing"
+  ],
+  "required_keyword_count": 2
+}

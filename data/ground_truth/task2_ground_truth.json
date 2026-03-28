@@ -1,0 +1,17 @@
+{
+  "dataset": "task2_readmission.csv",
+  "task": "task2_replication",
+  "auc": 0.86,
+  "f1": 0.5373,
+  "target_col": "readmitted_30d",
+  "feature_cols": [
+    "age",
+    "num_prior_admissions",
+    "los_days",
+    "num_medications",
+    "comorbidity_score"
+  ],
+  "n_samples": 400,
+  "imbalance_rate": 0.2,
+  "note": "Stratified split, StandardScaler, LR class_weight=balanced, seed=42"
+}

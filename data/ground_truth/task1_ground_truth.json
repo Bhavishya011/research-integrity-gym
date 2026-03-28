@@ -1,0 +1,17 @@
+{
+  "task": "task1_methodology_audit",
+  "note": "Flaws are injected procedurally per episode \u2014 see task1_methodology_audit.py",
+  "flaw_taxonomy": [
+    "wrong_statistical_test",
+    "underpowered_sample",
+    "undisclosed_exclusion",
+    "p_value_manipulation"
+  ],
+  "n_flaws": 4,
+  "scoring": {
+    "correct_full": 0.25,
+    "correct_partial": 0.1,
+    "false_positive": -0.05,
+    "fp_cap": -0.2
+  }
+}

@@ -1,7 +1,16 @@
+---
+title: Research Integrity Gym
+emoji: 🔬
+colorFrom: blue
+colorTo: purple
+sdk: docker
+pinned: false
+---
+
 # Research Integrity Gym
 
 [![openenv](https://img.shields.io/badge/openenv-compatible-green)](https://github.com/openenv)
-[![HuggingFace](https://img.shields.io/badge/🤗-Space-yellow)](https://huggingface.co/spaces/bhavishya555/research-integrity-gym)
+[![HuggingFace](https://img.shields.io/badge/🤗-Space-yellow)](https://huggingface.co/spaces/Nexus18/research-integrity-gym)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 An [OpenEnv](https://github.com/openenv) environment where AI agents evaluate **scientific research integrity** — the verification half of science that no existing benchmark covers.

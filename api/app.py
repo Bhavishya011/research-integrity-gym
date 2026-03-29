@@ -15,9 +15,10 @@ from __future__ import annotations
 import os
 import sys
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from typing import Optional
 
 # Ensure project root is on path regardless of working directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -94,9 +95,14 @@ def health():
 
 
 @app.post("/reset")
-def reset(req: ResetRequest = ResetRequest()):
+def reset(req: Optional[ResetRequest] = Body(default=None)):
     """Start a new episode. Returns initial Observation."""
     global _env
+    
+    # Handle empty body - use defaults
+    if req is None:
+        req = ResetRequest()
+    
     if req.seed is not None:
         _env = ResearchIntegrityEnv(seed=req.seed)
     try:

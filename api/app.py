@@ -68,6 +68,23 @@ class GraderRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
+@app.get("/")
+def root():
+    """Root endpoint - redirects to API documentation."""
+    return {
+        "name": "Research Integrity Gym",
+        "description": "OpenEnv environment for AI agents to evaluate scientific research integrity",
+        "docs": "/docs",
+        "endpoints": {
+            "health": "GET /health",
+            "tasks": "GET /tasks",
+            "reset": "POST /reset",
+            "step": "POST /step",
+            "state": "GET /state",
+        }
+    }
+
+
 @app.get("/health")
 def health():
     return {"status": "ok", "environment": "research-integrity-gym"}

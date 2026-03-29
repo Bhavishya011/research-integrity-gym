@@ -15,10 +15,11 @@ from __future__ import annotations
 import os
 import sys
 
-from fastapi import FastAPI, HTTPException, Body
+from fastapi import FastAPI, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
+import json
 
 # Ensure project root is on path regardless of working directory
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -95,18 +96,34 @@ def health():
 
 
 @app.post("/reset")
-def reset(req: Optional[ResetRequest] = Body(default=None)):
-    """Start a new episode. Returns initial Observation."""
+async def reset(request: Request):
+    """Start a new episode. Returns initial Observation.
+    
+    Accepts:
+      - Empty body (uses default task1)
+      - JSON body with task_id and/or seed
+    """
     global _env
     
-    # Handle empty body - use defaults
-    if req is None:
-        req = ResetRequest()
+    # Parse body manually to handle empty/missing body
+    body_bytes = await request.body()
     
-    if req.seed is not None:
-        _env = ResearchIntegrityEnv(seed=req.seed)
+    if body_bytes:
+        try:
+            body_data = json.loads(body_bytes)
+        except json.JSONDecodeError:
+            body_data = {}
+    else:
+        body_data = {}
+    
+    task_id = body_data.get("task_id", "task1_methodology_audit")
+    seed = body_data.get("seed", None)
+    
+    if seed is not None:
+        _env = ResearchIntegrityEnv(seed=seed)
+    
     try:
-        obs = _env.reset(task_id=req.task_id)
+        obs = _env.reset(task_id=task_id)
         return obs.model_dump()
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

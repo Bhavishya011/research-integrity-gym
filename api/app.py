@@ -54,6 +54,9 @@ class ResetRequest(BaseModel):
     task_id: str = "task1_methodology_audit"
     seed:    int | None = None
 
+    class Config:
+        extra = "ignore"  # Ignore extra fields
+
 
 class StepRequest(BaseModel):
     action: Action
@@ -91,7 +94,7 @@ def health():
 
 
 @app.post("/reset")
-def reset(req: ResetRequest):
+def reset(req: ResetRequest = ResetRequest()):
     """Start a new episode. Returns initial Observation."""
     global _env
     if req.seed is not None:

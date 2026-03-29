@@ -100,21 +100,26 @@ async def reset(request: Request):
     """Start a new episode. Returns initial Observation.
     
     Accepts:
-      - Empty body (uses default task1)
+      - Empty body
+      - Body with just "null"
       - JSON body with task_id and/or seed
     """
     global _env
     
-    # Parse body manually to handle empty/missing body
+    # Parse body manually to handle empty/missing/null body
     body_bytes = await request.body()
+    body_text = body_bytes.decode("utf-8").strip() if body_bytes else ""
     
-    if body_bytes:
+    # Handle empty body, "null", "{}", or actual JSON
+    body_data = {}
+    if body_text and body_text != "null":
         try:
-            body_data = json.loads(body_bytes)
+            parsed = json.loads(body_text)
+            if isinstance(parsed, dict):
+                body_data = parsed
+            # If parsed is None or not a dict, keep body_data as empty dict
         except json.JSONDecodeError:
-            body_data = {}
-    else:
-        body_data = {}
+            pass  # Keep body_data as empty dict
     
     task_id = body_data.get("task_id", "task1_methodology_audit")
     seed = body_data.get("seed", None)

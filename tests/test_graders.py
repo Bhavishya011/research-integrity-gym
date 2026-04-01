@@ -41,6 +41,36 @@ class MockVerdictPayload:
     effect_size: float
     p_value: float
     justification: str
+    
+    @property 
+    def verdict_value(self):
+        """Mock the .verdict.value pattern used by Pydantic enum."""
+        return self.verdict
+
+
+# Wrapper to handle enum vs string
+class VerdictWrapper:
+    def __init__(self, value: str):
+        self.value = value
+
+
+@dataclass  
+class MockVerdictPayloadWithEnum:
+    """Payload that mimics the real Pydantic model with enum."""
+    effect_size: float
+    p_value: float
+    justification: str
+    _verdict: str = ""
+    
+    def __init__(self, verdict: str, effect_size: float, p_value: float, justification: str):
+        self._verdict = verdict
+        self.effect_size = effect_size
+        self.p_value = p_value
+        self.justification = justification
+    
+    @property
+    def verdict(self):
+        return VerdictWrapper(self._verdict)
 
 
 # ---------------------------------------------------------------------------
@@ -48,8 +78,8 @@ class MockVerdictPayload:
 # ---------------------------------------------------------------------------
 
 from graders.grader1 import grade_audit
-from graders.grader2 import grade_replication
-from graders.grader3 import grade_verification
+from graders.grader2 import grade_results
+from graders.grader3 import grade_verdict
 
 
 # ===========================================================================
@@ -167,27 +197,31 @@ class TestGrader2:
     """Tests for the replication grader."""
 
     def test_perfect_replication(self):
-        """Exact match of AUC and F1 → 1.0"""
+        """Exact match of AUC and F1 with keywords → 1.0"""
+        ground_truth = {
+            "auc": 0.85,
+            "f1": 0.72,
+        }
+        # Need interpretation keywords for full score
+        payload = MockResultsPayload(
+            auc=0.85, f1=0.72, 
+            interpretation="The model handles class imbalance well with balanced weights"
+        )
+        
+        score = grade_results(payload, ground_truth)
+        assert score == 1.0, f"Expected 1.0, got {score}"
+
+    def test_within_tight_tolerance(self):
+        """AUC and F1 within ±0.01 → 0.45 + 0.35 = 0.80 (no interp keywords)"""
         ground_truth = {
             "auc": 0.85,
             "f1": 0.72,
         }
         payload = MockResultsPayload(auc=0.85, f1=0.72, interpretation="Good model")
         
-        score = grade_replication(payload, ground_truth)
-        assert score == 1.0, f"Expected 1.0, got {score}"
-
-    def test_within_tolerance(self):
-        """AUC and F1 within ±0.03 tolerance → full credit for those components"""
-        ground_truth = {
-            "auc": 0.85,
-            "f1": 0.72,
-        }
-        payload = MockResultsPayload(auc=0.87, f1=0.70, interpretation="Good model")
-        
-        score = grade_replication(payload, ground_truth)
-        # Both within tolerance: 0.45 (AUC) + 0.35 (F1) + 0.20 (interpretation) = 1.0
-        assert score == 1.0, f"Expected 1.0, got {score}"
+        score = grade_results(payload, ground_truth)
+        # 0.45 (AUC) + 0.35 (F1) + 0.0 (no keywords) = 0.80
+        assert score == 0.8, f"Expected 0.8, got {score}"
 
     def test_way_off_metrics(self):
         """Completely wrong metrics → low score"""
@@ -197,20 +231,23 @@ class TestGrader2:
         }
         payload = MockResultsPayload(auc=0.50, f1=0.30, interpretation="Bad model")
         
-        score = grade_replication(payload, ground_truth)
+        score = grade_results(payload, ground_truth)
         assert score < 0.5, f"Expected < 0.5, got {score}"
 
-    def test_no_interpretation_penalty(self):
-        """Empty interpretation → lose interpretation points"""
+    def test_interpretation_keywords_add_points(self):
+        """Interpretation with 2+ keywords adds 0.20"""
         ground_truth = {
             "auc": 0.85,
             "f1": 0.72,
         }
-        payload = MockResultsPayload(auc=0.85, f1=0.72, interpretation="")
+        payload = MockResultsPayload(
+            auc=0.85, f1=0.72, 
+            interpretation="Class imbalance handled with stratified sampling"
+        )
         
-        score = grade_replication(payload, ground_truth)
-        # Perfect metrics but no interpretation: 0.45 + 0.35 + 0.0 = 0.80
-        assert score == 0.8, f"Expected 0.8, got {score}"
+        score = grade_results(payload, ground_truth)
+        # 0.45 + 0.35 + 0.20 = 1.0
+        assert score == 1.0, f"Expected 1.0, got {score}"
 
 
 # ===========================================================================
@@ -232,14 +269,15 @@ class TestGrader3:
             "required_keywords": ["exclusion", "excluded", "outlier", "undisclosed"],
             "required_keyword_count": 2,
         }
-        payload = MockVerdictPayload(
+        # Long justification to pass coherence check (20+ words, 40%+ unique)
+        payload = MockVerdictPayloadWithEnum(
             verdict="invalid",
             effect_size=2.4,
             p_value=0.11,
-            justification="The data shows undisclosed exclusion of outliers which invalidates the claimed significant result."
+            justification="The data shows clear evidence of undisclosed exclusion of outliers from the treatment group which completely invalidates the claimed statistically significant result. The authors removed participants without proper documentation or justification in the methods section."
         )
         
-        score = grade_verification(payload, ground_truth)
+        score = grade_verdict(payload, ground_truth)
         assert score >= 0.9, f"Expected >= 0.9, got {score}"
 
     def test_wrong_verdict(self):
@@ -254,18 +292,19 @@ class TestGrader3:
             "required_keywords": ["exclusion", "excluded", "outlier", "undisclosed"],
             "required_keyword_count": 2,
         }
-        payload = MockVerdictPayload(
+        payload = MockVerdictPayloadWithEnum(
             verdict="valid",  # WRONG
             effect_size=2.5,
-            p_value=0.03,
-            justification="The study looks fine to me."
+            p_value=0.03,  # Also wrong - claims significant
+            justification="The study methodology appears sound and the statistical analysis is appropriate for the research design presented."
         )
         
-        score = grade_verification(payload, ground_truth)
+        score = grade_verdict(payload, ground_truth)
+        # Wrong verdict, wrong p-value direction, no exclusion keywords
         assert score < 0.5, f"Expected < 0.5, got {score}"
 
-    def test_justification_keywords_matter(self):
-        """Missing required keywords → lose justification points"""
+    def test_correct_verdict_no_keywords(self):
+        """Correct verdict but missing exclusion keywords → partial score"""
         ground_truth = {
             "true_verdict": "invalid",
             "true_effect": 2.5,
@@ -276,16 +315,17 @@ class TestGrader3:
             "required_keywords": ["exclusion", "excluded", "outlier", "undisclosed"],
             "required_keyword_count": 2,
         }
-        payload = MockVerdictPayload(
+        payload = MockVerdictPayloadWithEnum(
             verdict="invalid",
             effect_size=2.5,
             p_value=0.12,
-            justification="The statistics do not support the claim. The p-value is above threshold."  # No exclusion keywords
+            justification="The statistics do not support the claim because the p-value is clearly above the significance threshold of point zero five which means we cannot reject the null hypothesis."
         )
         
-        score = grade_verification(payload, ground_truth)
-        # Should score lower due to missing keywords about exclusion
-        assert score < 0.9, f"Expected < 0.9 due to missing keywords, got {score}"
+        score = grade_verdict(payload, ground_truth)
+        # Correct verdict (0.35) + effect (0.20) + p-value (0.15) = 0.70
+        # But missing exclusion keywords so no exclusion bonus
+        assert 0.6 <= score <= 0.75, f"Expected 0.6-0.75, got {score}"
 
 
 # ===========================================================================

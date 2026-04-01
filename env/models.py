@@ -15,14 +15,17 @@ from pydantic import BaseModel, Field, field_validator
 # ---------------------------------------------------------------------------
 
 class ActionType(str, Enum):
-    read_section     = "read_section"
-    read_dataset     = "read_dataset"
-    execute_code     = "execute_code"
-    flag_flaw        = "flag_flaw"       # Task 1
-    flag_concern     = "flag_concern"    # Task 3
-    submit_audit     = "submit_audit"    # Task 1 terminal
-    submit_results   = "submit_results"  # Task 2 terminal
-    submit_verdict   = "submit_verdict"  # Task 3 terminal
+    read_section        = "read_section"
+    read_dataset        = "read_dataset"
+    execute_code        = "execute_code"
+    flag_flaw           = "flag_flaw"           # Task 1
+    flag_concern        = "flag_concern"        # Task 3
+    check_citation      = "check_citation"      # Task 4
+    flag_fabrication    = "flag_fabrication"    # Task 4
+    submit_audit        = "submit_audit"        # Task 1 terminal
+    submit_results      = "submit_results"      # Task 2 terminal
+    submit_verdict      = "submit_verdict"      # Task 3 terminal
+    submit_report       = "submit_report"       # Task 4 terminal
 
 
 class FlawReport(BaseModel):
@@ -70,6 +73,13 @@ class SubmitVerdictPayload(BaseModel):
         return v
 
 
+class SubmitCitationReportPayload(BaseModel):
+    fabricated_citation_id:     Optional[int] = Field(None, description="Which citation is fake (1-4)")
+    fabrication_type:           str = Field(..., max_length=500, description="Type of fabrication detected")
+    verified_correct_citations: list[int] = Field(default_factory=list, description="Which citations are accurate")
+    evidence:                   str = Field(..., min_length=20, max_length=1000, description="Specific quote showing mismatch")
+
+
 class Action(BaseModel):
     action_type:  ActionType
 
@@ -86,10 +96,14 @@ class Action(BaseModel):
     concern_type: Optional[str] = None
     evidence:     Optional[str] = None
 
+    # Task 4: check_citation / flag_fabrication
+    citation_id:  Optional[int] = None
+
     # terminal submit payloads — exactly one will be populated per terminal action
     audit_payload:   Optional[SubmitAuditPayload]   = None
     results_payload: Optional[SubmitResultsPayload] = None
     verdict_payload: Optional[SubmitVerdictPayload] = None
+    report_payload:  Optional[SubmitCitationReportPayload] = None
 
     # generic overflow for future extensibility
     payload: Optional[dict] = None

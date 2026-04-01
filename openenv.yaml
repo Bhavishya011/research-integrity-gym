@@ -38,6 +38,14 @@ tasks:
       Agent must independently verify a statistical claim using the raw dataset,
       detecting a subtly incorrect result caused by undisclosed data exclusion.
 
+  - id: task4_citation_check
+    name: Citation Integrity Check
+    difficulty: medium-hard
+    max_steps: 20
+    description: >
+      Agent cross-references paper claims against citation excerpts to
+      detect one fabricated citation. Addresses LLM hallucination detection.
+
 observation_space:
   type: object
   fields:
@@ -62,9 +70,12 @@ action_space:
         - execute_code
         - flag_flaw
         - flag_concern
+        - check_citation
+        - flag_fabrication
         - submit_audit
         - submit_results
         - submit_verdict
+        - submit_report
     section: string_or_null
     code: string_or_null
     flaw_type: string_or_null
@@ -72,9 +83,11 @@ action_space:
     description: string_or_null
     concern_type: string_or_null
     evidence: string_or_null
+    citation_id: integer_or_null
     audit_payload: object_or_null
     results_payload: object_or_null
     verdict_payload: object_or_null
+    report_payload: object_or_null
 
 reward:
   range: [0.0, 1.0]

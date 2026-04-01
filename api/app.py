@@ -161,11 +161,13 @@ def tasks():
     from tasks.task1_methodology_audit import MethodologyAuditTask
     from tasks.task2_replication import ReplicationTask
     from tasks.task3_claim_verify import ClaimVerifyTask
+    from tasks.task4_citation_check import CitationCheckTask
 
     task_list = [
         MethodologyAuditTask().task_info(),
         ReplicationTask().task_info(),
         ClaimVerifyTask().task_info(),
+        CitationCheckTask().task_info(),
     ]
     return {"tasks": task_list}
 
@@ -180,9 +182,10 @@ def grader(req: GraderRequest):
     from graders.grader1 import grade_audit
     from graders.grader2 import grade_results
     from graders.grader3 import grade_verdict
+    from graders.grader4 import grade_citation_report
     from env.models import (
         SubmitAuditPayload, SubmitResultsPayload, SubmitVerdictPayload,
-        FlawReport,
+        SubmitCitationReportPayload, FlawReport,
     )
 
     task_id      = req.task_id
@@ -204,6 +207,10 @@ def grader(req: GraderRequest):
             payload = SubmitVerdictPayload(**terminal_act)
             score   = grade_verdict(payload, gt)
 
+        elif task_id == "task4_citation_check":
+            payload = SubmitCitationReportPayload(**terminal_act)
+            score   = grade_citation_report(payload, gt)
+
         else:
             raise HTTPException(status_code=400, detail=f"Unknown task_id: {task_id}")
 
@@ -216,7 +223,7 @@ def grader(req: GraderRequest):
 @app.post("/baseline")
 def baseline():
     """
-    Trigger the baseline inference script and return scores for all 3 tasks.
+    Trigger the baseline inference script and return scores for all 4 tasks.
     Requires GROQ_API_KEY in environment.
     """
     import subprocess

@@ -328,6 +328,133 @@ class TestGrader3:
         assert 0.6 <= score <= 0.75, f"Expected 0.6-0.75, got {score}"
 
 
+# ---------------------------------------------------------------------------
+# Grader 4 — Citation Integrity Check
+# ---------------------------------------------------------------------------
+
+class MockCitationReportPayload:
+    def __init__(self, fabricated_citation_id, fabrication_type, 
+                 verified_correct_citations, evidence):
+        self.fabricated_citation_id = fabricated_citation_id
+        self.fabrication_type = fabrication_type
+        self.verified_correct_citations = verified_correct_citations
+        self.evidence = evidence
+
+
+class TestGrader4:
+    """Test suite for Task 4: Citation Integrity Check grader"""
+
+    def test_perfect_identification(self):
+        """All components correct → 1.0 score"""
+        ground_truth = {
+            "fabricated_id": 2,
+            "fabrication_type": "directional",
+            "correct_citation_ids": [1, 3],
+            "excerpt_keywords": ["decreased", "performance", "control group"],
+        }
+        payload = MockCitationReportPayload(
+            fabricated_citation_id=2,
+            fabrication_type="directional reversal - paper claims increased but source says decreased",
+            verified_correct_citations=[1, 3],
+            evidence="The excerpt clearly states 'decreased performance in the control group' but the paper claims increased performance"
+        )
+
+        from graders.grader4 import grade_citation_report
+        score = grade_citation_report(payload, ground_truth)
+        assert score == 1.0, f"Expected 1.0, got {score}"
+
+    def test_wrong_citation_id(self):
+        """Identified wrong citation → lose 0.40 points"""
+        ground_truth = {
+            "fabricated_id": 2,
+            "fabrication_type": "magnitude",
+            "correct_citation_ids": [1, 3],
+            "excerpt_keywords": ["2.5%", "improvement"],
+        }
+        payload = MockCitationReportPayload(
+            fabricated_citation_id=1,  # WRONG
+            fabrication_type="magnitude error",
+            verified_correct_citations=[2, 3],
+            evidence="The excerpt shows 2.5% improvement"
+        )
+
+        from graders.grader4 import grade_citation_report
+        score = grade_citation_report(payload, ground_truth)
+        # Lost 0.40 for wrong ID, got 0.30 for type, got 0.08 for partial verification, got 0.15 for evidence
+        # Should be around 0.50-0.60
+        assert 0.40 <= score <= 0.65, f"Expected 0.40-0.65, got {score}"
+
+    def test_type_synonym_matching(self):
+        """Various ways to describe the same fabrication type should match"""
+        ground_truth = {
+            "fabricated_id": 1,
+            "fabrication_type": "population",
+            "correct_citation_ids": [2, 3],
+            "excerpt_keywords": ["adults", "age 25-65"],
+        }
+        
+        # Test different phrasings that should all match "population"
+        test_descriptions = [
+            "wrong population - generalized to children",
+            "population mismatch between study and claim",
+            "demographic issue - different age group",
+            "applied adults study to adolescents",
+        ]
+
+        from graders.grader4 import grade_citation_report
+        for desc in test_descriptions:
+            payload = MockCitationReportPayload(
+                fabricated_citation_id=1,
+                fabrication_type=desc,
+                verified_correct_citations=[2, 3],
+                evidence="Source studied adults age 25-65 only"
+            )
+            score = grade_citation_report(payload, ground_truth)
+            # Should get: 0.40 (ID) + 0.30 (type) + 0.15 (verification) + 0.15 (evidence) = 1.0
+            assert score >= 0.95, f"Description '{desc}' should match 'population', got {score}"
+
+    def test_partial_evidence(self):
+        """Evidence with only 1 keyword → partial credit"""
+        ground_truth = {
+            "fabricated_id": 3,
+            "fabrication_type": "significance",
+            "correct_citation_ids": [1, 2],
+            "excerpt_keywords": ["p-value", "not significant", "p>0.05"],
+        }
+        payload = MockCitationReportPayload(
+            fabricated_citation_id=3,
+            fabrication_type="significance flip",
+            verified_correct_citations=[1, 2],
+            evidence="The source shows p-value above threshold"  # Has "p-value" but not the others
+        )
+
+        from graders.grader4 import grade_citation_report
+        score = grade_citation_report(payload, ground_truth)
+        # 0.40 + 0.30 + 0.15 + 0.08 (partial evidence) = 0.93
+        assert 0.88 <= score <= 0.95, f"Expected 0.88-0.95, got {score}"
+
+    def test_no_evidence(self):
+        """Empty or minimal evidence → no evidence points"""
+        ground_truth = {
+            "fabricated_id": 1,
+            "fabrication_type": "absent",
+            "correct_citation_ids": [2, 3],
+            "excerpt_keywords": ["never mentioned", "not in source"],
+        }
+        payload = MockCitationReportPayload(
+            fabricated_citation_id=1,
+            fabrication_type="finding absent from citation",
+            verified_correct_citations=[2, 3],
+            evidence="Bad"  # Too short, no keywords
+        )
+
+        from graders.grader4 import grade_citation_report
+        score = grade_citation_report(payload, ground_truth)
+        # 0.40 + 0.30 + 0.15 + 0.0 = 0.85
+        assert 0.83 <= score <= 0.87, f"Expected 0.83-0.87, got {score}"
+
+
+
 # ===========================================================================
 # Run tests
 # ===========================================================================

@@ -67,6 +67,23 @@ Agent must independently re-analyse the raw dataset, detect the discrepancy, and
 
 Grader: correct verdict = 0.35, effect size accuracy = 0.20, p-value direction = 0.15, detected undisclosed exclusion = 0.20, justification keywords = 0.10.
 
+### Task 4 — Citation Integrity Check `[medium-hard]`
+A research paper cites 3 sources to support its claims. **One citation is fabricated** — the paper misrepresents what the source actually says.
+
+Agent must cross-reference claims against provided citation excerpts, identify the fabricated citation, and explain the type of fabrication (directional reversal, magnitude error, population mismatch, significance flip, or completely absent finding).
+
+| Fabrication type | Example |
+|------------------|---------|
+| `directional` | Paper says "increased performance" but source reports "decreased performance" |
+| `magnitude` | Paper claims 25% improvement, source shows 2.5% |
+| `population` | Paper generalizes adults study to children |
+| `significance` | Paper claims p<0.05, source shows p>0.05 |
+| `absent` | Finding never mentioned in the cited source |
+
+**Real-world relevance:** LLMs frequently hallucinate citations. This task tests whether agents can detect citation fabrication — a critical skill for fact-checking and academic integrity.
+
+Grader: identified fabricated citation = 0.40, correct fabrication type = 0.30, verified other citations = 0.15, cited specific evidence = 0.15.
+
 ---
 
 ## Action Space
@@ -78,9 +95,12 @@ Grader: correct verdict = 0.35, effect size accuracy = 0.20, p-value direction =
 | `execute_code` | `code: str` | All tasks |
 | `flag_flaw` | `flaw_type, location, description` | Task 1 |
 | `flag_concern` | `concern_type, evidence` | Task 3 |
+| `check_citation` | `citation_id: int` | Task 4 |
+| `flag_fabrication` | `citation_id: int` | Task 4 |
 | `submit_audit` | `audit_payload: {flaws: [...]}` | Task 1 |
 | `submit_results` | `results_payload: {auc, f1, interpretation}` | Task 2 |
 | `submit_verdict` | `verdict_payload: {verdict, effect_size, p_value, justification}` | Task 3 |
+| `submit_report` | `report_payload: {fabricated_citation_id, fabrication_type, verified_correct_citations, evidence}` | Task 4 |
 
 ## Observation Space
 
@@ -107,11 +127,12 @@ Evaluated with `llama-3.3-70b-versatile` (via Groq), temperature=0, seed=42.
 | Task | Grader Score | Steps |
 |------|-------------|-------|
 | Task 1 — Methodology Audit | 0.40 | 8 |
-| Task 2 — Experiment Replication | 0.80 | 6 |
-| Task 3 — Claim Verification | 0.50 | 10 |
-| **Average** | **0.57** | — |
+| Task 2 — Experiment Replication | 0.80 | 4 |
+| Task 3 — Claim Verification | 0.50 | 13 |
+| Task 4 — Citation Integrity Check | 1.00 | 2 |
+| **Average** | **0.6750** | — |
 
-Scores show a clear difficulty curve — strong on structured ML replication (0.80), moderate on ambiguous claim verification (0.50), weakest on multi-flaw audit (0.40). A perfect agent would score 1.0 on all tasks.
+Scores show clear task differentiation. Task 4 (citation fabrication) achieves perfect 1.0 — the LLM excels at cross-referencing text. Task 2 (ML replication) scores 0.80. Task 3 (statistical re-analysis) scores 0.50 due to the subtle data exclusion trap. Task 1 (multi-flaw audit) achieves 0.40, showing room for improvement in comprehensive methodology review.
 
 ---
 

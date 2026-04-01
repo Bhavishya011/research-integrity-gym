@@ -31,6 +31,7 @@ except ImportError:
 from env.models import (
     Action, ActionType, Observation, Reward,
     SubmitAuditPayload, SubmitResultsPayload, SubmitVerdictPayload,
+    SubmitCitationReportPayload,
 )
 from env.reward import compute_step_reward, compute_terminal_reward
 from env.state import EpisodeState
@@ -46,10 +47,12 @@ def _load_task_registry() -> None:
     from tasks.task1_methodology_audit import MethodologyAuditTask
     from tasks.task2_replication import ReplicationTask
     from tasks.task3_claim_verify import ClaimVerifyTask
+    from tasks.task4_citation_check import CitationCheckTask
     _TASK_REGISTRY = {
         "task1_methodology_audit": MethodologyAuditTask,
         "task2_replication":       ReplicationTask,
         "task3_claim_verify":      ClaimVerifyTask,
+        "task4_citation_check":    CitationCheckTask,
     }
 
 
@@ -136,6 +139,7 @@ class ResearchIntegrityEnv:
         "task1_methodology_audit",
         "task2_replication",
         "task3_claim_verify",
+        "task4_citation_check",
     ]
 
     def __init__(self, seed: Optional[int] = None) -> None:
@@ -210,6 +214,9 @@ class ResearchIntegrityEnv:
 
         elif atype in (ActionType.flag_flaw, ActionType.flag_concern):
             step_r, comp = self._handle_flag(action, state)
+        
+        elif atype in (ActionType.check_citation, ActionType.flag_fabrication):
+            step_r, comp = self._handle_citation_flag(action, state)
 
         elif atype == ActionType.submit_audit:
             step_r, comp, grader_score = self._handle_submit_audit(action, state)
@@ -221,6 +228,10 @@ class ResearchIntegrityEnv:
 
         elif atype == ActionType.submit_verdict:
             step_r, comp, grader_score = self._handle_submit_verdict(action, state)
+            done = True
+
+        elif atype == ActionType.submit_report:
+            step_r, comp, grader_score = self._handle_submit_report(action, state)
             done = True
 
         else:
@@ -433,6 +444,57 @@ class ResearchIntegrityEnv:
         step_r, comp = compute_terminal_reward(grader_score, state)
         return step_r, comp, grader_score
 
+    def _handle_citation_flag(
+        self, action: Action, state: EpisodeState
+    ) -> tuple[float, object]:
+        """Handle check_citation and flag_fabrication actions for Task 4."""
+        citation_id = action.citation_id
+        
+        if action.action_type == ActionType.check_citation:
+            # Show citation details
+            citations = state.ground_truth.get("all_citations", [])
+            match = next((c for c in citations if c["id"] == citation_id), None)
+            if match:
+                state.last_code_result = (
+                    f"Citation [{citation_id}] {match['author']} ({match['year']}):\n"
+                    f"Excerpt: \"{match['excerpt']}\""
+                )
+                return 0.03, {}
+            state.last_code_result = f"[Citation {citation_id} not found]"
+            return 0.0, {}
+        
+        elif action.action_type == ActionType.flag_fabrication:
+            # Track flagged citation
+            state.flags_raised.append({
+                "citation_id": citation_id,
+                "fabrication_type": action.flaw_type or "",
+                "evidence": action.description or "",
+            })
+            gt_id = state.ground_truth.get("fabricated_id")
+            if citation_id == gt_id:
+                return 0.08, {}  # Small reward for finding it
+            return -0.05, {}  # Penalty for false positive
+        
+        return 0.0, {}
+
+    def _handle_submit_report(
+        self, action: Action, state: EpisodeState
+    ) -> tuple[float, object, float]:
+        """Terminal action for Task 4."""
+        from graders.grader4 import grade_citation_report
+        payload = action.report_payload
+        if payload is None:
+            return 0.0, {}, 0.0
+        state.terminal_action = {
+            "fabricated_citation_id":     payload.fabricated_citation_id,
+            "fabrication_type":           payload.fabrication_type,
+            "verified_correct_citations": payload.verified_correct_citations,
+            "evidence":                   payload.evidence,
+        }
+        grader_score = grade_citation_report(payload, state.ground_truth)
+        step_r, comp = compute_terminal_reward(grader_score, state)
+        return step_r, comp, grader_score
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -630,4 +692,6 @@ def _available_actions(state: EpisodeState) -> list[str]:
         return base + ["submit_results"]
     elif tid == "task3_claim_verify":
         return base + ["flag_concern", "submit_verdict"]
+    elif tid == "task4_citation_check":
+        return base + ["check_citation", "flag_fabrication", "submit_report"]
     return base

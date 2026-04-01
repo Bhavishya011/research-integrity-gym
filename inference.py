@@ -6,7 +6,7 @@ MANDATORY COMPLIANCE — OpenEnv Hackathon
 - Uses OpenAI Client for all LLM calls
 - Named inference.py at repo root
 
-This script runs the baseline agent against all 3 tasks and produces scores.
+This script runs the baseline agent against all 4 tasks and produces scores.
 """
 from __future__ import annotations
 
@@ -16,7 +16,11 @@ import os
 import sys
 import textwrap
 
+from dotenv import load_dotenv
 from openai import OpenAI
+
+# Load environment variables from .env file
+load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -24,15 +28,17 @@ from env.environment import ResearchIntegrityEnv
 from env.models import (
     Action, ActionType,
     FlawReport, SubmitAuditPayload,
-    SubmitResultsPayload, SubmitVerdictPayload, Verdict,
+    SubmitResultsPayload, SubmitVerdictPayload, SubmitCitationReportPayload,
+    Verdict,
 )
 
 # ---------------------------------------------------------------------------
 # MANDATORY: Use environment variables as specified by hackathon
 # ---------------------------------------------------------------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
-API_KEY = os.getenv("HF_TOKEN") or os.getenv("API_KEY") or os.getenv("GROQ_API_KEY", "")
-MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
+API_KEY = os.getenv("GROQ_API_KEY", "")
+API_KEY_FALLBACK = os.getenv("GROQ_API_KEY_FALLBACK", "")
+MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
 
 MAX_STEPS = 15
 SEED = 42
@@ -88,6 +94,35 @@ SYSTEM_PROMPTS = {
         Run your own t-test. Check if claimed n matches dataset rows.
         Look for undisclosed exclusions. Respond ONLY with valid JSON.
     """).strip(),
+
+    "task4_citation_check": textwrap.dedent("""
+        You are a citation integrity checker. A paper cites 3 sources, but ONE citation 
+        is fabricated - the claim in the paper doesn't match what the cited source says.
+
+        STRATEGY:
+        1. Read the paper carefully - note what each citation claims
+        2. Compare each claim to the citation excerpts provided
+        3. Find the ONE citation where the claim contradicts the excerpt
+        4. Submit your report identifying the fabricated citation
+
+        Available actions (respond with JSON only):
+          {"action_type": "read_section", "section": "citations"}
+          {"action_type": "submit_report", "report_payload": {
+              "fabricated_citation_id": 2,
+              "fabrication_type": "directional - paper claims X increased but source says decreased",
+              "verified_correct_citations": [1, 3],
+              "evidence": "Quote the specific text showing the mismatch"
+          }}
+
+        Fabrication types to look for:
+        - directional: paper says "increased" but source says "decreased" (or vice versa)
+        - magnitude: paper claims 25% but source shows 2.5% (wrong numbers)
+        - population: paper generalizes to children but source studied adults only
+        - significance: paper claims p<0.05 but source shows p>0.05
+        - absent: paper claims a finding the source never mentions
+
+        Respond ONLY with valid JSON. No prose.
+    """).strip(),
 }
 
 
@@ -117,8 +152,27 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
             )
             raw = response.choices[0].message.content.strip()
         except Exception as e:
-            print(f"  LLM call failed: {e}", file=sys.stderr)
-            raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
+            error_msg = str(e)
+            print(f"  LLM call failed: {error_msg}", file=sys.stderr)
+            
+            # Check if it's a 402 error (depleted credits) and we have a fallback key
+            if "402" in error_msg and API_KEY_FALLBACK:
+                print(f"  Switching to fallback API key...", file=sys.stderr)
+                # Create new client with fallback key
+                client = OpenAI(api_key=API_KEY_FALLBACK, base_url=API_BASE_URL)
+                try:
+                    response = client.chat.completions.create(
+                        model=MODEL_NAME,
+                        messages=messages,
+                        temperature=0.0,
+                        max_tokens=800,
+                    )
+                    raw = response.choices[0].message.content.strip()
+                except Exception as e2:
+                    print(f"  Fallback also failed: {e2}", file=sys.stderr)
+                    raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
+            else:
+                raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
 
         messages.append({"role": "assistant", "content": raw})
 
@@ -196,6 +250,20 @@ def _parse_action(raw: str, task_id: str) -> Action | None:
                 evidence=data.get("evidence", ""),
             )
 
+        if atype == "check_citation":
+            return Action(
+                action_type=ActionType.check_citation,
+                citation_id=int(data.get("citation_id", 0)),
+            )
+
+        if atype == "flag_fabrication":
+            return Action(
+                action_type=ActionType.flag_fabrication,
+                citation_id=int(data.get("citation_id", 0)),
+                flaw_type=data.get("fabrication_type", ""),
+                description=data.get("evidence", ""),
+            )
+
         if atype == "submit_audit":
             ap = data.get("audit_payload", {})
             flaws = [FlawReport(**f) for f in ap.get("flaws", [])]
@@ -227,6 +295,18 @@ def _parse_action(raw: str, task_id: str) -> Action | None:
                 ),
             )
 
+        if atype == "submit_report":
+            rp = data.get("report_payload", {})
+            return Action(
+                action_type=ActionType.submit_report,
+                report_payload=SubmitCitationReportPayload(
+                    fabricated_citation_id=rp.get("fabricated_citation_id"),
+                    fabrication_type=rp.get("fabrication_type", ""),
+                    verified_correct_citations=rp.get("verified_correct_citations", []),
+                    evidence=rp.get("evidence", ""),
+                ),
+            )
+
     except Exception:
         pass
     return None
@@ -243,12 +323,14 @@ def main():
     args = parser.parse_args()
 
     if not API_KEY:
-        print("ERROR: No API key found. Set HF_TOKEN, API_KEY, or GROQ_API_KEY.", file=sys.stderr)
+        print("ERROR: No API key found. Set GROQ_API_KEY.", file=sys.stderr)
         sys.exit(1)
 
     if not args.output_json:
         print(f"Using API: {API_BASE_URL}")
         print(f"Model: {MODEL_NAME}")
+        if API_KEY_FALLBACK:
+            print(f"Fallback key available: Yes")
 
     # MANDATORY: Use OpenAI client with specified env vars
     client = OpenAI(
@@ -262,6 +344,7 @@ def main():
         "task1_methodology_audit",
         "task2_replication",
         "task3_claim_verify",
+        "task4_citation_check",
     ]
 
     results = []

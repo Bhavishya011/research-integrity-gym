@@ -9,28 +9,95 @@ Scoring:
 """
 from __future__ import annotations
 
+# Comprehensive synonym list for fair matching
+# Agents may phrase flaws in many valid ways — we accept all reasonable variants
 _FLAW_SYNONYMS: dict[str, list[str]] = {
     "wrong_statistical_test": [
-        "wrong test", "incorrect test", "t-test", "t test", "chi-square",
-        "chi square", "anova", "parametric", "non-parametric",
-        "wrong statistical", "inappropriate test", "statistical test",
+        # Direct matches
+        "wrong test", "incorrect test", "inappropriate test", "wrong statistical",
+        "statistical test", "misapplied test", "misused test",
+        # Specific tests
+        "t-test", "t test", "ttest", "chi-square", "chi square", "chisquare",
+        "chi-sq", "anova", "mann-whitney", "mann whitney", "wilcoxon",
+        "pearson", "spearman", "kruskal", "fisher exact",
+        # Conceptual
+        "parametric", "non-parametric", "nonparametric", "normality assumption",
+        "distributional assumption", "test assumption", "violated assumption",
+        # Phrasing variants
+        "inappropriate statistical", "inappropriate method", "incorrect method",
+        "wrong method", "invalid test", "unsuitable test", "mismatched test",
+        "test mismatch", "analysis mismatch", "wrong analysis",
+        "inappropriate analysis", "incorrect analysis", "flawed analysis",
+        # Outcome type issues
+        "continuous outcome", "categorical outcome", "ordinal", "binary outcome",
+        "data type mismatch", "variable type",
     ],
     "underpowered_sample": [
-        "sample size", "underpowered", "small n", "insufficient participants",
+        # Direct matches
+        "sample size", "underpowered", "small n", "small sample",
+        "insufficient sample", "insufficient participants", "insufficient subjects",
         "low power", "power analysis", "n too small", "power",
+        # Phrasing variants
+        "inadequate sample", "limited sample", "small group", "few participants",
+        "few subjects", "small cohort", "inadequate n", "low n",
+        "underpowered study", "insufficient n", "sample too small",
+        "not enough participants", "not enough subjects", "limited participants",
+        # Statistical power
+        "statistical power", "power calculation", "effect size", "detectable effect",
+        "type ii error", "type 2 error", "beta error", "false negative rate",
+        # Numbers that indicate awareness
+        "n=", "n =", "per group", "per arm", "each group", "each arm",
     ],
     "undisclosed_exclusion": [
+        # Direct matches
         "exclusion", "excluded", "outlier", "removed", "undisclosed",
         "missing data", "data exclusion", "selective", "missing participants",
+        # Phrasing variants
+        "unreported exclusion", "hidden exclusion", "silent exclusion",
+        "participant removal", "data removal", "unexplained removal",
+        "participants dropped", "dropped participants", "attrition",
+        "lost to follow", "dropout", "drop out", "drop-out", "withdrew",
+        "withdrawal", "discontinued", "did not complete",
+        # Discrepancy language
+        "discrepancy", "mismatch", "inconsistent", "doesn't match",
+        "does not match", "differ", "different n", "reported n",
+        "recruited vs", "enrolled vs", "analyzed vs", "analysed vs",
+        # Numbers
+        "missing", "unaccounted", "not reported", "unclear how many",
     ],
     "p_value_manipulation": [
-        "p-value", "p value", "fishing", "hacking", "selective reporting",
-        "multiple comparison", "bonferroni", "significance threshold",
-        "multiple outcomes", "multiple testing",
+        # Direct matches
+        "p-value", "p value", "pvalue", "p-hacking", "p hacking", "phacking",
+        "fishing", "hacking", "selective reporting", "cherry pick",
+        # Multiple comparisons
+        "multiple comparison", "multiple comparisons", "bonferroni",
+        "multiple testing", "multiplicity", "family-wise", "familywise",
+        "correction", "adjustment", "adjusted p", "uncorrected",
+        # Outcomes
+        "multiple outcomes", "multiple endpoints", "secondary outcome",
+        "primary outcome", "outcome switching", "endpoint switching",
+        # Conceptual
+        "significance threshold", "alpha level", "type i error", "type 1 error",
+        "false positive", "significant result", "selective", "selectively reported",
+        "only significant", "only reported significant", "unreported outcomes",
+        "file drawer", "publication bias",
+        # Phrasing variants
+        "significance hunting", "data dredging", "outcome fishing",
+        "harking", "hypothesizing after", "post-hoc", "post hoc", "posthoc",
     ],
     "class_imbalance_ignored": [
-        "class imbalance", "imbalanced", "stratif", "oversampl", "undersampl",
-        "weighted", "recall", "precision",
+        # Direct matches
+        "class imbalance", "imbalanced", "imbalance", "unbalanced",
+        "stratif", "stratified", "stratification",
+        # Techniques
+        "oversampl", "undersampl", "smote", "weighted", "class weight",
+        "balanced", "resampl",
+        # Metrics affected
+        "recall", "precision", "f1", "f-score", "sensitivity", "specificity",
+        "auc", "roc", "accuracy paradox",
+        # Phrasing
+        "skewed classes", "majority class", "minority class", "rare class",
+        "unequal distribution", "prevalence", "base rate",
     ],
 }
 

@@ -22,7 +22,7 @@ An [OpenEnv](https://github.com/openenv) environment where AI agents evaluate **
 
 ## Motivation
 
-The replication crisis affects an estimated 50–70% of published scientific findings. Detecting methodological flaws, replicating experiments, and catching statistical manipulation are critical skills — for human reviewers today, and for AI systems tomorrow. This environment provides a structured, fully automated benchmark for these capabilities.
+The replication crisis affects an estimated 50–70% of published scientific findings ([Baker, M. "1,500 scientists lift the lid on reproducibility." *Nature* 533, 452–454, 2016](https://www.nature.com/articles/533452a)). Detecting methodological flaws, replicating experiments, and catching statistical manipulation are critical skills — for human reviewers today, and for AI systems tomorrow. This environment provides a structured, fully automated benchmark for these capabilities.
 
 No existing OpenEnv environment covers scientific verification. This fills a real gap.
 

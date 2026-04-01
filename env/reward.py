@@ -31,6 +31,9 @@ R_FALSE_POSITIVE_FLAG    = -0.05  # flagged a non-existent flaw (per occurrence)
 R_FALSE_POSITIVE_CAP     = -0.20  # cap on total false positive penalty
 R_STEP_BUDGET_EXCEEDED   = -0.10  # exceeded max_steps
 
+# Efficiency bonus: completing task quickly shows agent competence
+R_EFFICIENCY_BONUS       = 0.05   # awarded if done in under half the step budget
+
 # Terminal (grader) weight
 # Final reward = grader_score * GRADER_WEIGHT + mid_episode_total * MID_WEIGHT
 # Ensures grader always dominates.
@@ -41,12 +44,13 @@ MID_EPISODE_MAX = 0.30  # mid-episode signals are clamped to this
 
 @dataclass
 class RewardComponents:
-    exploration:    float = 0.0
-    data_grounding: float = 0.0
-    code_quality:   float = 0.0
-    flaw_detection: float = 0.0
-    grader_score:   float = 0.0
-    penalties:      float = 0.0
+    exploration:      float = 0.0
+    data_grounding:   float = 0.0
+    code_quality:     float = 0.0
+    flaw_detection:   float = 0.0
+    grader_score:     float = 0.0
+    penalties:        float = 0.0
+    efficiency_bonus: float = 0.0
 
     def total_mid_episode(self) -> float:
         raw = (self.exploration + self.data_grounding +
@@ -55,12 +59,13 @@ class RewardComponents:
 
     def to_dict(self) -> dict[str, float]:
         return {
-            "exploration":    round(self.exploration, 4),
-            "data_grounding": round(self.data_grounding, 4),
-            "code_quality":   round(self.code_quality, 4),
-            "flaw_detection": round(self.flaw_detection, 4),
-            "grader_score":   round(self.grader_score, 4),
-            "penalties":      round(self.penalties, 4),
+            "exploration":      round(self.exploration, 4),
+            "data_grounding":   round(self.data_grounding, 4),
+            "code_quality":     round(self.code_quality, 4),
+            "flaw_detection":   round(self.flaw_detection, 4),
+            "grader_score":     round(self.grader_score, 4),
+            "penalties":        round(self.penalties, 4),
+            "efficiency_bonus": round(self.efficiency_bonus, 4),
         }
 
 
@@ -148,9 +153,17 @@ def compute_terminal_reward(
     if state.is_over_budget():
         c.penalties += R_STEP_BUDGET_EXCEEDED
 
+    # Efficiency bonus: completed in under half the step budget
+    # Shows agent competence and trajectory quality
+    half_budget = state.max_steps // 2
+    if state.step < half_budget and grader_score > 0.5:
+        # Only award efficiency bonus if task was actually done well
+        c.efficiency_bonus += R_EFFICIENCY_BONUS
+
     mid_total = min(state.cumulative_reward, MID_EPISODE_MAX)
     terminal_r = round(
-        grader_score * GRADER_WEIGHT + mid_total * MID_WEIGHT + c.penalties,
+        grader_score * GRADER_WEIGHT + mid_total * MID_WEIGHT + 
+        c.penalties + c.efficiency_bonus,
         6
     )
     # Clamp final to [0.0, 1.0]

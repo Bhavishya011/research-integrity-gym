@@ -36,9 +36,9 @@ from env.models import (
 # MANDATORY: Use environment variables as specified by hackathon
 # ---------------------------------------------------------------------------
 API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-API_KEY = os.getenv("GROQ_API_KEY", "")
-API_KEY_FALLBACK = os.getenv("GROQ_API_KEY_FALLBACK", "")
 MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
+HF_TOKEN = os.getenv("HF_TOKEN")
+LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # Optional – if you use from_docker_image()
 
 MAX_STEPS = 15
 SEED = 42
@@ -132,6 +132,8 @@ SYSTEM_PROMPTS = {
 
 def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
     """Run a single task and return the result dict."""
+    print(f"START: {task_id}", flush=True)
+    
     obs = env.reset(task_id=task_id)
     messages = [
         {"role": "system", "content": SYSTEM_PROMPTS[task_id]},
@@ -184,6 +186,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
             })
             continue
 
+        action_type = action.action_type.name if action else "unknown"
+        print(f"STEP: {action_type}", flush=True)
+        
         obs, reward, done, info = env.step(action)
         steps_taken += 1
         final_reward = reward.total
@@ -206,6 +211,8 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
 
         messages.append({"role": "user", "content": "\n".join(feedback_parts)})
 
+    print(f"END: {task_id}, grader_score={round(grader_score, 4)}, reward={round(final_reward, 4)}, steps={steps_taken}", flush=True)
+    
     return {
         "task_id": task_id,
         "grader_score": round(grader_score, 4),
@@ -322,19 +329,19 @@ def main():
                         help="Print JSON output (for automated evaluation)")
     args = parser.parse_args()
 
-    if not API_KEY:
-        print("ERROR: No API key found. Set GROQ_API_KEY.", file=sys.stderr)
+    if not HF_TOKEN:
+        print("ERROR: No HF_TOKEN found. Set HF_TOKEN environment variable.", file=sys.stderr)
         sys.exit(1)
 
     if not args.output_json:
         print(f"Using API: {API_BASE_URL}")
         print(f"Model: {MODEL_NAME}")
-        if API_KEY_FALLBACK:
-            print(f"Fallback key available: Yes")
+        if LOCAL_IMAGE_NAME:
+            print(f"Docker image: {LOCAL_IMAGE_NAME}")
 
     # MANDATORY: Use OpenAI client with specified env vars
     client = OpenAI(
-        api_key=API_KEY,
+        api_key=HF_TOKEN,
         base_url=API_BASE_URL,
     )
 
@@ -349,14 +356,8 @@ def main():
 
     results = []
     for task_id in task_ids:
-        if not args.output_json:
-            print(f"\nRunning {task_id}...", flush=True)
         result = run_task(client, task_id, env)
         results.append(result)
-        if not args.output_json:
-            print(f"  Grader score : {result['grader_score']:.4f}")
-            print(f"  Final reward : {result['final_reward']:.4f}")
-            print(f"  Steps taken  : {result['steps_taken']}")
 
     avg = round(sum(r["grader_score"] for r in results) / len(results), 4)
     output = {
@@ -369,9 +370,7 @@ def main():
     if args.output_json:
         print(json.dumps(output))
     else:
-        print(f"\n{'='*40}")
-        print(f"Average grader score: {avg:.4f}")
-        print(f"{'='*40}")
+        print(f"\nAverage grader score: {avg:.4f}")
 
 
 if __name__ == "__main__":

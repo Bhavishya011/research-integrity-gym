@@ -1,8 +1,10 @@
 """
 Baseline inference script — OpenEnv spec requirement.
 
-Uses Groq's Llama 3.3 70B via OpenAI-compatible endpoint.
-Reads GROQ_API_KEY from environment variables.
+Environment variables (set by judge's evaluation system):
+  API_BASE_URL - LLM API endpoint (default: HF router)
+  MODEL_NAME   - Model identifier (default: Llama 3.3 70B)
+  HF_TOKEN     - HuggingFace API token (required, no default)
 
 Usage:
   python baseline.py              # human-readable scores
@@ -16,11 +18,7 @@ import os
 import sys
 import textwrap
 
-from dotenv import load_dotenv
 from openai import OpenAI
-
-# Load environment variables from .env file
-load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -28,14 +26,17 @@ from env.environment import ResearchIntegrityEnv
 from env.models import (
     Action, ActionType,
     FlawReport, SubmitAuditPayload,
-    SubmitResultsPayload, SubmitVerdictPayload, Verdict,
+    SubmitResultsPayload, SubmitVerdictPayload, SubmitCitationReportPayload,
+    Verdict,
 )
 
-# HuggingFace router — required by OpenEnv submission spec
-HF_ROUTER_URL = "https://router.huggingface.co/v1"
-MODEL         = "meta-llama/Llama-3.3-70B-Instruct"
-MAX_STEPS     = 15
-SEED          = 42
+# Environment variables with defaults (per OpenEnv spec)
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME   = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+HF_TOKEN     = os.getenv("HF_TOKEN")  # Required, no default
+
+MAX_STEPS = 15
+SEED      = 42
 
 
 SYSTEM_PROMPTS = {
@@ -116,7 +117,12 @@ SYSTEM_PROMPTS = {
 
 
 def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
+    """Run a single task and return performance metrics."""
     obs = env.reset(task_id=task_id)
+    
+    # Structured logging: START
+    print(f"START episode_id={task_id} step=0", flush=True)
+    
     messages = [
         {"role": "system", "content": SYSTEM_PROMPTS[task_id]},
         {"role": "user",   "content": f"PAPER:\n{obs.paper_text}\n\nBegin your analysis."},
@@ -128,7 +134,7 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
 
     for step_num in range(MAX_STEPS):
         response = client.chat.completions.create(
-            model       = MODEL,
+            model       = MODEL_NAME,
             messages    = messages,
             temperature = 0.0,
             max_tokens  = 800,
@@ -150,6 +156,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
 
         if reward.grader_score is not None:
             grader_score = reward.grader_score
+        
+        # Structured logging: STEP
+        print(f"STEP episode_id={task_id} step={steps_taken} reward={reward.step_reward:.4f} done={done}", flush=True)
 
         if done:
             break
@@ -163,6 +172,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
         parts.append(f"Steps remaining: {MAX_STEPS - step_num - 1}")
         parts.append("Continue or submit when ready.")
         messages.append({"role": "user", "content": "\n".join(parts)})
+    
+    # Structured logging: END
+    print(f"END episode_id={task_id} grader_score={grader_score:.4f} total_reward={final_reward:.4f} steps={steps_taken}", flush=True)
 
     return {
         "task_id":      task_id,
@@ -263,14 +275,15 @@ def main():
                         help="Output JSON for /baseline endpoint")
     args = parser.parse_args()
 
-    api_key = os.environ.get("HF_TOKEN", "")
-    if not api_key:
+    # Validate required environment variable
+    if not HF_TOKEN:
         print("ERROR: HF_TOKEN not set.", file=sys.stderr)
         sys.exit(1)
 
+    # Configure OpenAI client with environment variables
     client = OpenAI(
-        api_key  = api_key,
-        base_url = HF_ROUTER_URL,
+        api_key  = HF_TOKEN,
+        base_url = API_BASE_URL,
     )
     env = ResearchIntegrityEnv(seed=SEED)
 
@@ -293,7 +306,12 @@ def main():
             print(f"  Steps taken  : {result['steps_taken']}")
 
     avg = round(sum(r["grader_score"] for r in results) / len(results), 4)
-    output = {"model": MODEL, "seed": SEED, "tasks": results, "avg_grader_score": avg}
+    output = {
+        "model": MODEL_NAME,
+        "seed": SEED,
+        "tasks": results,
+        "avg_grader_score": avg
+    }
 
     if args.output_json:
         print(json.dumps(output))

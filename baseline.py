@@ -31,11 +31,11 @@ from env.models import (
     SubmitResultsPayload, SubmitVerdictPayload, Verdict,
 )
 
-# Groq OpenAI-compatible endpoint
-GROQ_BASE_URL = "https://api.groq.com/openai/v1"
-MODEL     = "llama-3.3-70b-versatile"   # best free model on Groq
-MAX_STEPS = 15
-SEED      = 42
+# HuggingFace router — required by OpenEnv submission spec
+HF_ROUTER_URL = "https://router.huggingface.co/v1"
+MODEL         = "meta-llama/Llama-3.3-70B-Instruct"
+MAX_STEPS     = 15
+SEED          = 42
 
 
 SYSTEM_PROMPTS = {
@@ -84,6 +84,33 @@ SYSTEM_PROMPTS = {
 
         Run your own t-test. Check if claimed n matches dataset rows.
         Look for undisclosed exclusions. Respond ONLY with valid JSON.
+    """).strip(),
+
+    "task4_citation_check": textwrap.dedent("""
+        You are a research integrity auditor. A paper cites sources but one
+        citation is fabricated — the paper's claim doesn't match the excerpt.
+
+        Available actions (respond with JSON only, no prose):
+          {"action_type": "read_section", "section": "citations"}
+          {"action_type": "check_citation", "citation_id": <int>}
+          {"action_type": "flag_fabrication", "citation_id": <int>, "flaw_type": "<type>", "description": "<evidence>"}
+          {"action_type": "submit_report", "report_payload": {
+              "fabricated_citation_id": <int>,
+              "fabrication_type": "<directional|magnitude|population|significance|absent>",
+              "verified_correct_citations": [<int>, <int>],
+              "evidence": "<quote showing mismatch>"
+          }}
+
+        Fabrication types explained:
+          - directional: claim says "increased" but source says "decreased" (or vice versa)
+          - magnitude: wrong numbers (e.g., "180%" vs "18%", "25%" vs "2.5%")
+          - population: wrong demographic (e.g., "adults" vs "children")
+          - significance: wrong p-value or significance claim
+          - absent: claim not mentioned in source at all
+
+        Strategy: Read citations section first, compare each citation to paper claims,
+        identify the fabricated one, verify the others are correct, then submit_report.
+        Respond ONLY with valid JSON.
     """).strip(),
 }
 
@@ -202,6 +229,29 @@ def _parse_action(raw: str) -> Action | None:
                     justification=vp.get("justification", ""),
                 ),
             )
+        if atype == "check_citation":
+            return Action(
+                action_type=ActionType.check_citation,
+                citation_id=int(data.get("citation_id", 1)),
+            )
+        if atype == "flag_fabrication":
+            return Action(
+                action_type=ActionType.flag_fabrication,
+                citation_id=int(data.get("citation_id", 1)),
+                flaw_type=data.get("flaw_type", ""),
+                description=data.get("description", ""),
+            )
+        if atype == "submit_report":
+            rp = data.get("report_payload", {})
+            return Action(
+                action_type=ActionType.submit_report,
+                report_payload=SubmitCitationReportPayload(
+                    fabricated_citation_id=rp.get("fabricated_citation_id"),
+                    fabrication_type=rp.get("fabrication_type", ""),
+                    verified_correct_citations=rp.get("verified_correct_citations", []),
+                    evidence=rp.get("evidence", ""),
+                ),
+            )
     except Exception:
         pass
     return None
@@ -209,18 +259,18 @@ def _parse_action(raw: str) -> Action | None:
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output-json", action="store_true")
+    parser.add_argument("--output-json", action="store_true",
+                        help="Output JSON for /baseline endpoint")
     args = parser.parse_args()
 
-    api_key = os.environ.get("GROQ_API_KEY", "")
+    api_key = os.environ.get("HF_TOKEN", "")
     if not api_key:
-        print("ERROR: GROQ_API_KEY not set.", file=sys.stderr)
+        print("ERROR: HF_TOKEN not set.", file=sys.stderr)
         sys.exit(1)
 
-    # openai SDK pointed at Groq's OpenAI-compatible endpoint
     client = OpenAI(
         api_key  = api_key,
-        base_url = GROQ_BASE_URL,
+        base_url = HF_ROUTER_URL,
     )
     env = ResearchIntegrityEnv(seed=SEED)
 
@@ -228,6 +278,7 @@ def main():
         "task1_methodology_audit",
         "task2_replication",
         "task3_claim_verify",
+        "task4_citation_check",
     ]
 
     results = []

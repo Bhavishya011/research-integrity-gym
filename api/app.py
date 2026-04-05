@@ -224,22 +224,22 @@ def grader(req: GraderRequest):
 def baseline():
     """
     Trigger the baseline inference script and return scores for all 4 tasks.
-    Requires GROQ_API_KEY in environment.
+    Requires HF_TOKEN in environment.
     """
     import subprocess
     import json
 
-    api_key = os.environ.get("GROQ_API_KEY", "")
+    api_key = os.environ.get("HF_TOKEN", "")
     if not api_key:
         raise HTTPException(
             status_code=503,
-            detail="GROQ_API_KEY not set. Add it to Space secrets.",
+            detail="HF_TOKEN not set. Add it to Space secrets.",
         )
 
     result = subprocess.run(
         [sys.executable, "baseline.py", "--output-json"],
         capture_output=True, text=True, timeout=300,
-        env={**os.environ, "GROQ_API_KEY": api_key},
+        env={**os.environ, "HF_TOKEN": api_key},
     )
 
     if result.returncode != 0:

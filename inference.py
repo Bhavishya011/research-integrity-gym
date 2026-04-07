@@ -138,8 +138,8 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
     """Run a single task and return the result dict."""
     obs = env.reset(task_id=task_id)
     
-    # Structured logging: START
-    print(f"START episode_id={task_id} step=0", flush=True)
+    # Structured logging: [START]
+    print(f"[START] task={task_id}", flush=True)
     
     messages = [
         {"role": "system", "content": SYSTEM_PROMPTS[task_id]},
@@ -181,8 +181,8 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
         if reward.grader_score is not None:
             grader_score = reward.grader_score
         
-        # Structured logging: STEP
-        print(f"STEP episode_id={task_id} step={steps_taken} reward={reward.step_reward:.4f} done={done}", flush=True)
+        # Structured logging: [STEP]
+        print(f"[STEP] task={task_id} step={steps_taken} reward={reward.step_reward:.4f}", flush=True)
 
         if done:
             break
@@ -199,8 +199,8 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
 
         messages.append({"role": "user", "content": "\n".join(feedback_parts)})
     
-    # Structured logging: END
-    print(f"END episode_id={task_id} grader_score={grader_score:.4f} total_reward={final_reward:.4f} steps={steps_taken}", flush=True)
+    # Structured logging: [END]
+    print(f"[END] task={task_id} score={grader_score:.4f} steps={steps_taken}", flush=True)
     
     return {
         "task_id": task_id,
@@ -332,16 +332,16 @@ def main():
     # Use minimal parameters to avoid version/environment conflicts
     try:
         import httpx
-        # Create a basic HTTP client without proxies to avoid parameter conflicts
+        # Create a basic HTTP client with short timeouts to fail fast
         http_client = httpx.Client(
-            timeout=httpx.Timeout(60.0, connect=10.0),
+            timeout=httpx.Timeout(10.0, connect=5.0),  # Short timeouts
             limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
         )
         client = OpenAI(
             api_key=API_KEY,
             base_url=API_BASE_URL,
             http_client=http_client,
-            max_retries=2,
+            max_retries=0,  # No retries for faster failure
         )
     except ImportError:
         # Fallback if httpx import fails
@@ -349,7 +349,8 @@ def main():
             client = OpenAI(
                 api_key=API_KEY,
                 base_url=API_BASE_URL,
-                max_retries=2,
+                max_retries=0,
+                timeout=10.0,
             )
         except Exception as e:
             print(f"ERROR: Failed to create OpenAI client: {e}", file=sys.stderr)
@@ -357,7 +358,7 @@ def main():
     except Exception as e:
         # Final fallback - try absolute minimal client
         try:
-            client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+            client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL, timeout=10.0, max_retries=0)
         except Exception as e2:
             print(f"ERROR: Failed to create OpenAI client: {e2}", file=sys.stderr)
             print(f"Original error: {e}", file=sys.stderr)

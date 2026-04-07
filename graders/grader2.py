@@ -49,4 +49,6 @@ def grade_results(payload, ground_truth: dict) -> float:
     elif hits == 1:
         score += 0.10
 
-    return round(max(0.0, min(1.0, score)), 4)
+    # Clamp to (0.0001, 0.9999) - judges require strictly between 0 and 1
+    score = max(0.0001, min(0.9999, score))
+    return round(score, 4)

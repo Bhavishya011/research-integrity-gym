@@ -1,12 +1,14 @@
 """
-===================================
-MANDATORY COMPLIANCE — OpenEnv Hackathon
-===================================
-- Uses environment variables: API_BASE_URL, MODEL_NAME, HF_TOKEN
-- Uses OpenAI Client for all LLM calls
-- Named inference.py at repo root
+OpenEnv baseline inference script.
 
-This script runs the baseline agent against all 4 tasks and produces scores.
+Environment variables (set by judge's evaluation system):
+  API_BASE_URL - LLM API endpoint (default: HF router)
+  MODEL_NAME   - Model identifier (default: Llama 3.3 70B)
+  HF_TOKEN     - API token (optional, tries multiple env vars)
+
+Usage:
+  python inference.py              # human-readable scores
+  python inference.py --output-json # JSON output
 """
 from __future__ import annotations
 
@@ -16,11 +18,7 @@ import os
 import sys
 import textwrap
 
-from dotenv import load_dotenv
 from openai import OpenAI
-
-# Load environment variables from .env file
-load_dotenv()
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -33,12 +31,18 @@ from env.models import (
 )
 
 # ---------------------------------------------------------------------------
-# MANDATORY: Use environment variables as specified by hackathon
+# Environment variables with defaults (per OpenEnv spec)
 # ---------------------------------------------------------------------------
-API_BASE_URL = os.getenv("API_BASE_URL", "https://api.groq.com/openai/v1")
-MODEL_NAME = os.getenv("MODEL_NAME", "llama-3.3-70b-versatile")
-HF_TOKEN = os.getenv("HF_TOKEN")
-LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")  # Optional – if you use from_docker_image()
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+
+# Try multiple possible API key environment variables
+API_KEY = (
+    os.getenv("HF_TOKEN") or 
+    os.getenv("API_KEY") or 
+    os.getenv("GROQ_API_KEY") or
+    os.getenv("OPENAI_API_KEY")
+)
 
 MAX_STEPS = 15
 SEED = 42
@@ -132,9 +136,11 @@ SYSTEM_PROMPTS = {
 
 def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
     """Run a single task and return the result dict."""
-    print(f"START: {task_id}", flush=True)
-    
     obs = env.reset(task_id=task_id)
+    
+    # Structured logging: START
+    print(f"START episode_id={task_id} step=0", flush=True)
+    
     messages = [
         {"role": "system", "content": SYSTEM_PROMPTS[task_id]},
         {"role": "user", "content": f"PAPER:\n{obs.paper_text}\n\nBegin your analysis."},
@@ -154,27 +160,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
             )
             raw = response.choices[0].message.content.strip()
         except Exception as e:
-            error_msg = str(e)
-            print(f"  LLM call failed: {error_msg}", file=sys.stderr)
-            
-            # Check if it's a 402 error (depleted credits) and we have a fallback key
-            if "402" in error_msg and API_KEY_FALLBACK:
-                print(f"  Switching to fallback API key...", file=sys.stderr)
-                # Create new client with fallback key
-                client = OpenAI(api_key=API_KEY_FALLBACK, base_url=API_BASE_URL)
-                try:
-                    response = client.chat.completions.create(
-                        model=MODEL_NAME,
-                        messages=messages,
-                        temperature=0.0,
-                        max_tokens=800,
-                    )
-                    raw = response.choices[0].message.content.strip()
-                except Exception as e2:
-                    print(f"  Fallback also failed: {e2}", file=sys.stderr)
-                    raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
-            else:
-                raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
+            print(f"LLM call failed: {e}", file=sys.stderr)
+            # Return empty submission on API failure
+            raw = '{"action_type": "submit_audit", "audit_payload": {"flaws": []}}'
 
         messages.append({"role": "assistant", "content": raw})
 
@@ -185,9 +173,6 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
                 "content": "Invalid JSON. Respond with a valid action JSON only.",
             })
             continue
-
-        action_type = action.action_type.name if action else "unknown"
-        print(f"STEP: {action_type}", flush=True)
         
         obs, reward, done, info = env.step(action)
         steps_taken += 1
@@ -195,6 +180,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
 
         if reward.grader_score is not None:
             grader_score = reward.grader_score
+        
+        # Structured logging: STEP
+        print(f"STEP episode_id={task_id} step={steps_taken} reward={reward.step_reward:.4f} done={done}", flush=True)
 
         if done:
             break
@@ -210,8 +198,9 @@ def run_task(client: OpenAI, task_id: str, env: ResearchIntegrityEnv) -> dict:
         feedback_parts.append("Continue your analysis or submit when ready.")
 
         messages.append({"role": "user", "content": "\n".join(feedback_parts)})
-
-    print(f"END: {task_id}, grader_score={round(grader_score, 4)}, reward={round(final_reward, 4)}, steps={steps_taken}", flush=True)
+    
+    # Structured logging: END
+    print(f"END episode_id={task_id} grader_score={grader_score:.4f} total_reward={final_reward:.4f} steps={steps_taken}", flush=True)
     
     return {
         "task_id": task_id,
@@ -329,21 +318,25 @@ def main():
                         help="Print JSON output (for automated evaluation)")
     args = parser.parse_args()
 
-    if not HF_TOKEN:
-        print("ERROR: No HF_TOKEN found. Set HF_TOKEN environment variable.", file=sys.stderr)
-        sys.exit(1)
-
     if not args.output_json:
         print(f"Using API: {API_BASE_URL}")
         print(f"Model: {MODEL_NAME}")
-        if LOCAL_IMAGE_NAME:
-            print(f"Docker image: {LOCAL_IMAGE_NAME}")
+        print(f"API Key: {'Set' if API_KEY else 'Missing'}")
 
-    # MANDATORY: Use OpenAI client with specified env vars
-    client = OpenAI(
-        api_key=HF_TOKEN,
-        base_url=API_BASE_URL,
-    )
+    # Validate API key
+    if not API_KEY:
+        print("ERROR: No API key found. Set HF_TOKEN, API_KEY, GROQ_API_KEY, or OPENAI_API_KEY.", file=sys.stderr)
+        sys.exit(1)
+
+    # Create OpenAI client with error handling
+    try:
+        client = OpenAI(
+            api_key=API_KEY,
+            base_url=API_BASE_URL,
+        )
+    except Exception as e:
+        print(f"ERROR: Failed to create OpenAI client: {e}", file=sys.stderr)
+        sys.exit(1)
 
     env = ResearchIntegrityEnv(seed=SEED)
 

@@ -329,14 +329,39 @@ def main():
         sys.exit(1)
 
     # Create OpenAI client with error handling
+    # Use minimal parameters to avoid version/environment conflicts
     try:
+        import httpx
+        # Create a basic HTTP client without proxies to avoid parameter conflicts
+        http_client = httpx.Client(
+            timeout=httpx.Timeout(60.0, connect=10.0),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=5),
+        )
         client = OpenAI(
             api_key=API_KEY,
             base_url=API_BASE_URL,
+            http_client=http_client,
+            max_retries=2,
         )
+    except ImportError:
+        # Fallback if httpx import fails
+        try:
+            client = OpenAI(
+                api_key=API_KEY,
+                base_url=API_BASE_URL,
+                max_retries=2,
+            )
+        except Exception as e:
+            print(f"ERROR: Failed to create OpenAI client: {e}", file=sys.stderr)
+            sys.exit(1)
     except Exception as e:
-        print(f"ERROR: Failed to create OpenAI client: {e}", file=sys.stderr)
-        sys.exit(1)
+        # Final fallback - try absolute minimal client
+        try:
+            client = OpenAI(api_key=API_KEY, base_url=API_BASE_URL)
+        except Exception as e2:
+            print(f"ERROR: Failed to create OpenAI client: {e2}", file=sys.stderr)
+            print(f"Original error: {e}", file=sys.stderr)
+            sys.exit(1)
 
     env = ResearchIntegrityEnv(seed=SEED)
 

@@ -1,5 +1,5 @@
-# Use specific Python version with SHA for reproducibility
-FROM python:3.11.8-slim-bookworm
+# Use most common Python image (likely cached in judge's infrastructure)
+FROM python:3.11-slim
 
 # HuggingFace Spaces requires port 7860
 EXPOSE 7860

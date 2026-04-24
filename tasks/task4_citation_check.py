@@ -1,11 +1,12 @@
 """
-Task 4: Citation Integrity Check — MEDIUM-HARD
+Task 4: Citation Integrity Check — MEDIUM-HARD (PeerGuard: Sponsor Literature Audit)
 -----------------------------------------------
-Agent reads a research paper that cites 3-4 sources. ONE citation is fabricated —
-the paper's claim doesn't match what the cited source actually says.
+Agent reads a sponsor's NDA memo that cites 3-4 sources. ONE citation is fabricated —
+the sponsor claims "the drug is safe for pregnant demographics" but the actual
+source states "the drug caused severe teratogenic effects in mammalian models."
 
 Agent must cross-reference claims against provided citation excerpts and flag
-the misrepresentation.
+the misrepresentation (fabrication type: directional).
 
 This addresses a critical LLM weakness: citation hallucination.
 """
@@ -59,7 +60,7 @@ FABRICATION_TYPES = [
 
 class CitationCheckTask(BaseTask):
     task_id    = "task4_citation_check"
-    task_name  = "Citation Integrity Check"
+    task_name  = "Sponsor Literature Audit"
     difficulty = "medium-hard"
     max_steps  = 20
 
@@ -73,9 +74,9 @@ class CitationCheckTask(BaseTask):
         for i in range(n_citations):
             citations.append(self._generate_citation(domain, i + 1, rng))
 
-        # Pick one to fabricate
+        # Pick one to fabricate — always use directional fabrication for PeerGuard
         fabricated_idx = rng.randint(0, n_citations - 1)
-        fabrication_type = rng.choice(FABRICATION_TYPES)
+        fabrication_type = "directional"  # Fixed: sponsor safety claim vs teratogenic reality
         
         # Apply fabrication
         fabricated_cite = citations[fabricated_idx]
@@ -160,71 +161,26 @@ class CitationCheckTask(BaseTask):
         }
 
     def _apply_fabrication(self, citation: dict, fab_type: str, domain: dict, rng: random.Random):
-        """Apply a specific type of fabrication to a citation."""
+        """Apply directional fabrication: sponsor claims safety, source shows teratogenic harm."""
         citation["is_fabricated"] = True
-        citation["fabrication_type"] = fab_type
+        citation["fabrication_type"] = "directional"
 
-        if fab_type == "directional":
-            # Reverse the direction in the paper claim
-            direction_map = {
-                "increased": "decreased",
-                "decreased": "increased",
-                "improved": "worsened",
-                "reduced": "increased",
-            }
-            wrong_direction = direction_map.get(citation["direction"], "decreased")
-            citation["paper_claim"] = (
-                f"{citation['author']} ({citation['year']}) found "
-                f"{citation['intervention']} {wrong_direction} "
-                f"{citation['outcome']} by {citation['effect_size']}%"
-            )
-            citation["excerpt_keywords"].append("directional")
-
-        elif fab_type == "magnitude":
-            # Change magnitude by factor of 10
-            wrong_size = citation["effect_size"] // 10 if citation["effect_size"] >= 20 else citation["effect_size"] * 10
-            citation["paper_claim"] = (
-                f"{citation['author']} ({citation['year']}) found "
-                f"{citation['intervention']} {citation['direction']} "
-                f"{citation['outcome']} by {wrong_size}%"
-            )
-            citation["excerpt_keywords"].append("magnitude")
-
-        elif fab_type == "population":
-            # Change population
-            populations = domain["population"]
-            wrong_pop = rng.choice([p for p in populations if p != citation["population"]])
-            citation["paper_claim"] = (
-                f"{citation['author']} ({citation['year']}) found "
-                f"{citation['intervention']} {citation['direction']} "
-                f"{citation['outcome']} by {citation['effect_size']}% in {wrong_pop}"
-            )
-            citation["excerpt_keywords"].append(citation["population"])
-
-        elif fab_type == "significance":
-            # Claim significance when there is none
-            citation["paper_claim"] = (
-                f"{citation['author']} ({citation['year']}) found "
-                f"{citation['intervention']} significantly {citation['direction']} "
-                f"{citation['outcome']} (p<0.05)"
-            )
-            # Change excerpt to non-significant
-            citation["excerpt"] = (
-                f"{citation['intervention']} showed no significant effect on "
-                f"{citation['outcome']} in {citation['population']} (p=0.18)"
-            )
-            citation["excerpt_keywords"] = ["no significant", "p=0.18"]
-
-        elif fab_type == "absent":
-            # Claim finding that's not in the excerpt
-            fake_outcome = rng.choice([o for o in domain["outcome"] if o != citation["outcome"]])
-            citation["paper_claim"] = (
-                f"{citation['author']} ({citation['year']}) found "
-                f"{citation['intervention']} {citation['direction']} "
-                f"{fake_outcome} by {citation['effect_size']}%"
-            )
-            # Don't add "absent" as a keyword - add the fake_outcome instead
-            citation["excerpt_keywords"] = [fake_outcome, "not mentioned", citation["outcome"]]
+        # PeerGuard-specific: sponsor claims drug is safe for pregnant demographics
+        # but actual source shows severe teratogenic effects
+        citation["paper_claim"] = (
+            f"Prior studies ({citation['author']}, {citation['year']}) show the drug "
+            f"is safe for pregnant demographics with no adverse fetal outcomes observed."
+        )
+        citation["excerpt"] = (
+            f"The drug caused severe teratogenic effects in mammalian models, including "
+            f"skeletal malformations and neural tube defects at therapeutic doses "
+            f"(95% CI: 2.4-5.1x baseline malformation rate, p<0.001). "
+            f"Contraindicated in pregnancy."
+        )
+        citation["excerpt_keywords"] = [
+            "teratogenic", "malformations", "contraindicated", "pregnancy",
+            "directional", "safe vs harmful",
+        ]
 
     def _build_paper(self, domain: dict, citations: list, rng: random.Random) -> str:
         """Build the full paper text with citations."""
@@ -241,25 +197,26 @@ class CitationCheckTask(BaseTask):
             )
 
         paper = textwrap.dedent(f"""
-            TITLE: Meta-analysis of interventions in {field}
+            TITLE: Sponsor NDA Supporting Literature Review — {field}
 
-            INTRODUCTION
-            Recent research has established important findings in {field}:
+            SPONSOR MEMO
+            The following literature supports the safety and efficacy claims
+            in our New Drug Application submission:
             {chr(10).join(citation_texts)}
 
-            We conducted a comprehensive meta-analysis to synthesize these findings
-            and identify patterns across studies.
+            Prior studies show the drug is safe for pregnant demographics.
 
-            METHODS
-            We searched PubMed, PsycINFO, and Google Scholar for relevant studies
-            published between 2018-2023. Inclusion criteria required randomized
-            controlled trials with validated outcome measures.
+            METHODOLOGY
+            We reviewed published literature in PubMed, Cochrane Library, and
+            FDA submission archives for relevant studies published between
+            2018-2023. All cited studies used randomized controlled designs
+            with validated outcome measures.
 
             CITATION EXCERPTS PROVIDED:
             {chr(10).join(citation_excerpts)}
 
             ---
-            Your task: Cross-reference the claims in the introduction against
+            Your task: Cross-reference the sponsor's claims against
             the citation excerpts. One citation is misrepresented. Identify which
             citation is fabricated and explain the discrepancy.
 
@@ -290,3 +247,11 @@ class CitationCheckTask(BaseTask):
                 }
             },
         }
+
+    @classmethod
+    def generate(cls, seed=None):
+        """Convenience method for Task 5 consumption."""
+        task = cls(seed=seed)
+        ep = task.generate_episode()
+        state = {"paper_text": ep["paper_text"], "dataset_path": ep.get("dataset_path")}
+        return state, ep["ground_truth"]

@@ -5,7 +5,7 @@ These must pass `openenv validate`. Every field is explicit; no Optional abuse.
 from __future__ import annotations
 
 from enum import Enum
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,6 +26,7 @@ class ActionType(str, Enum):
     submit_results      = "submit_results"      # Task 2 terminal
     submit_verdict      = "submit_verdict"      # Task 3 terminal
     submit_report       = "submit_report"       # Task 4 terminal
+    submit_fda_verdict  = "submit_fda_verdict"  # Task 5 terminal
 
 
 class FlawReport(BaseModel):
@@ -80,6 +81,24 @@ class SubmitCitationReportPayload(BaseModel):
     evidence:                   str = Field(..., min_length=20, max_length=1000, description="Specific quote showing mismatch")
 
 
+class FDADecision(str, Enum):
+    APPROVE = "APPROVE"
+    REJECT  = "REJECT"
+    REVISE  = "REVISE"
+
+
+class SubmitFDAVerdictPayload(BaseModel):
+    """Terminal payload for Task 5: FDA Approval capstone."""
+    decision: FDADecision = Field(
+        ..., description="APPROVE | REJECT | REVISE"
+    )
+    justification_flags: list[str] = Field(
+        default_factory=list,
+        description="List of flags justifying the decision, e.g. "
+                    "['protocol_deviation', 'class_imbalance', 'deleted_patients', 'citation_fabrication']"
+    )
+
+
 class Action(BaseModel):
     action_type:  ActionType
 
@@ -100,10 +119,11 @@ class Action(BaseModel):
     citation_id:  Optional[int] = None
 
     # terminal submit payloads — exactly one will be populated per terminal action
-    audit_payload:   Optional[SubmitAuditPayload]   = None
-    results_payload: Optional[SubmitResultsPayload] = None
-    verdict_payload: Optional[SubmitVerdictPayload] = None
-    report_payload:  Optional[SubmitCitationReportPayload] = None
+    audit_payload:       Optional[SubmitAuditPayload]           = None
+    results_payload:     Optional[SubmitResultsPayload]         = None
+    verdict_payload:     Optional[SubmitVerdictPayload]         = None
+    report_payload:      Optional[SubmitCitationReportPayload]  = None
+    fda_verdict_payload: Optional[SubmitFDAVerdictPayload]      = None
 
     # generic overflow for future extensibility
     payload: Optional[dict] = None

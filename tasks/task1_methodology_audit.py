@@ -1,8 +1,9 @@
 """
-Task 1: Methodology Audit — EASY
+Task 1: Methodology Audit — EASY (PeerGuard: CONSORT Protocol Violation Audit)
 ---------------------------------
-Agent reads a synthetic paper stub and must identify 4 planted methodological
-flaws. Paper is procedurally generated each episode to prevent memorisation.
+Agent reads a synthetic clinical trial paper stub and must identify 4 planted
+CONSORT protocol violations. Paper is procedurally generated each episode
+to prevent memorisation.
 
 Flaw injection system:
   - Templates have slots: [STATISTICAL_TEST], [GROUP_A], [GROUP_B], etc.
@@ -57,23 +58,23 @@ STAT_TESTS = {
 # Flaw templates: (flaw_taxonomy, description_template, section_hint)
 FLAW_TEMPLATES = [
     {
-        "taxonomy": "wrong_statistical_test",
-        "inject":   lambda ctx, rng: _inject_wrong_test(ctx, rng),
+        "taxonomy": "unblinded_investigator_bias",
+        "inject":   lambda ctx, rng: _inject_unblinded_bias(ctx, rng),
         "section":  "statistical_analysis",
     },
     {
-        "taxonomy": "underpowered_sample",
-        "inject":   lambda ctx, rng: _inject_underpowered(ctx, rng),
+        "taxonomy": "insufficient_power_analysis",
+        "inject":   lambda ctx, rng: _inject_insufficient_power(ctx, rng),
         "section":  "participants",
     },
     {
-        "taxonomy": "undisclosed_exclusion",
-        "inject":   lambda ctx, rng: _inject_undisclosed_exclusion(ctx, rng),
+        "taxonomy": "protocol_deviation_unreported",
+        "inject":   lambda ctx, rng: _inject_protocol_deviation(ctx, rng),
         "section":  "results",
     },
     {
-        "taxonomy": "p_value_manipulation",
-        "inject":   lambda ctx, rng: _inject_p_hack(ctx, rng),
+        "taxonomy": "endpoint_switching",
+        "inject":   lambda ctx, rng: _inject_endpoint_switching(ctx, rng),
         "section":  "results",
     },
 ]
@@ -85,7 +86,7 @@ FLAW_TEMPLATES = [
 
 class MethodologyAuditTask(BaseTask):
     task_id    = "task1_methodology_audit"
-    task_name  = "Methodology Audit"
+    task_name  = "CONSORT Protocol Violation Audit"
     difficulty = "easy"
     max_steps  = 20
 
@@ -145,61 +146,70 @@ class MethodologyAuditTask(BaseTask):
             "submit_audit":  {"audit_payload": {"flaws": "[{flaw_type, location, description}]"}},
         }
 
+    @classmethod
+    def generate(cls, seed=None):
+        """Convenience method for Task 5 consumption."""
+        task = cls(seed=seed)
+        ep = task.generate_episode()
+        state = {"paper_text": ep["paper_text"], "dataset_path": ep.get("dataset_path")}
+        return state, ep["ground_truth"]
+
 
 # ---------------------------------------------------------------------------
-# Flaw injectors
+# Flaw injectors — CONSORT protocol violations
 # ---------------------------------------------------------------------------
 
-def _inject_wrong_test(ctx: dict, rng: random.Random) -> tuple[str, dict]:
-    """Inject a wrong statistical test for the data type."""
+def _inject_unblinded_bias(ctx: dict, rng: random.Random) -> tuple[str, dict]:
+    """Inject unblinded investigator bias (CONSORT violation)."""
     outcome = ctx["outcome"]
-    # Continuous outcomes → inject chi-square (wrong for continuous data)
-    wrong_test = "chi-square test"
     sentence = (
-        f"Group differences in {outcome} were analysed using a {wrong_test} "
-        f"to compare {ctx['group_type']} across conditions."
+        f"The principal investigator, who was unblinded to group allocation, "
+        f"personally assessed {outcome} across all {ctx['group_type']}. "
+        f"No independent blinded assessor was used for outcome evaluation."
     )
     note = {
-        "description": f"Chi-square test applied to continuous outcome ({outcome}); "
-                       f"an independent samples t-test or Mann-Whitney U test is appropriate.",
-        "hint_keywords": ["chi-square", "wrong test", "incorrect test", "statistical test"],
+        "description": f"Unblinded investigator assessed primary outcome ({outcome}); "
+                       f"CONSORT requires blinded outcome assessment to prevent detection bias.",
+        "hint_keywords": ["unblinded", "investigator bias", "detection bias", "blinding", "assessor"],
     }
     return sentence, note
 
 
-def _inject_underpowered(ctx: dict, rng: random.Random) -> tuple[str, dict]:
-    """Inject an underpowered sample without disclosure."""
+def _inject_insufficient_power(ctx: dict, rng: random.Random) -> tuple[str, dict]:
+    """Inject an insufficient power analysis (CONSORT violation)."""
     n = ctx["n_per_group"]
     sentence = (
         f"A total of {ctx['total_n']} {ctx['group_type']} were recruited "
-        f"({n} per group). No a priori power analysis was conducted."
+        f"({n} per group). No a priori power analysis was conducted "
+        f"and no sample size justification was provided per ICH-GCP guidelines."
     )
     note = {
         "description": f"Sample of {n} per group is underpowered for detecting medium effects "
                        f"(typically requires n≥64 per group at 80% power, α=0.05). "
-                       f"No power analysis reported.",
-        "hint_keywords": ["underpowered", "sample size", "power analysis", "small n"],
+                       f"No power analysis reported — CONSORT Item 7a violation.",
+        "hint_keywords": ["underpowered", "sample size", "power analysis", "insufficient power", "ICH-GCP"],
     }
     return sentence, note
 
 
-def _inject_undisclosed_exclusion(ctx: dict, rng: random.Random) -> tuple[str, dict]:
-    """Inject results that silently exclude participants."""
+def _inject_protocol_deviation(ctx: dict, rng: random.Random) -> tuple[str, dict]:
+    """Inject unreported protocol deviation (CONSORT violation)."""
     n_excluded = rng.choice([5, 7, 9, 11])
     original_n = ctx["total_n"]
     reported_n = original_n - n_excluded
     outcome = ctx["outcome"]
     p_val = round(rng.uniform(0.02, 0.048), 3)
     sentence = (
-        f"After analysis, the {ctx['intervention']} group showed significantly "
+        f"After per-protocol analysis, the {ctx['intervention']} group showed significantly "
         f"improved {outcome} compared to placebo (p={p_val}, n={reported_n}), "
-        f"representing a clinically meaningful improvement."
+        f"representing a clinically meaningful improvement. Protocol deviations "
+        f"were not separately reported in the CONSORT flow diagram."
     )
     note = {
         "description": f"Results reported for n={reported_n} but {original_n} were recruited. "
                        f"{n_excluded} participants excluded from analysis without disclosure "
-                       f"in methods section.",
-        "hint_keywords": ["exclusion", "excluded", "undisclosed", "missing participants"],
+                       f"in the CONSORT flow diagram — protocol deviation unreported.",
+        "hint_keywords": ["protocol deviation", "exclusion", "excluded", "undisclosed", "CONSORT flow"],
         "excluded_n": n_excluded,
         "reported_n": reported_n,
         "original_n": original_n,
@@ -207,22 +217,24 @@ def _inject_undisclosed_exclusion(ctx: dict, rng: random.Random) -> tuple[str, d
     return sentence, note
 
 
-def _inject_p_hack(ctx: dict, rng: random.Random) -> tuple[str, dict]:
-    """Inject evidence of p-value fishing (multiple outcomes, only one reported)."""
+def _inject_endpoint_switching(ctx: dict, rng: random.Random) -> tuple[str, dict]:
+    """Inject endpoint switching (CONSORT violation)."""
     outcomes_tested = [ctx["outcome"], "secondary biomarker", "quality of life score",
                        "adverse event rate", "dropout rate"]
     rng.shuffle(outcomes_tested)
     sentence = (
-        f"Multiple secondary outcomes were assessed including "
+        f"The pre-registered primary endpoint was {outcomes_tested[1]}, however "
+        f"multiple secondary outcomes were assessed including "
         f"{', '.join(outcomes_tested[:3])}. "
         f"Only {ctx['outcome']} reached statistical significance (p=0.043) "
-        f"and is reported in detail."
+        f"and is reported as the primary outcome in the final analysis."
     )
     note = {
-        "description": f"Multiple outcomes tested ({len(outcomes_tested[:3])}) without "
-                       f"correction for multiple comparisons (e.g. Bonferroni). "
-                       f"Only significant outcome selectively reported.",
-        "hint_keywords": ["p-value", "multiple comparison", "selective reporting", "bonferroni", "fishing"],
+        "description": f"Primary endpoint was switched post-hoc. Multiple outcomes tested "
+                       f"({len(outcomes_tested[:3])}) without correction for multiple comparisons. "
+                       f"Original primary endpoint did not reach significance — CONSORT violation.",
+        "hint_keywords": ["endpoint switching", "primary endpoint", "outcome switching", 
+                         "multiple comparison", "selective reporting"],
     }
     return sentence, note
 
@@ -240,30 +252,35 @@ def _build_sections(ctx: dict) -> dict:
     n_per_group  = ctx["n_per_group"]
 
     abstract = textwrap.dedent(f"""
-        Background: This {field} evaluated the efficacy of {intervention} on {outcome}.
+        Background: This {field} evaluated the efficacy of {intervention} on {outcome}
+        in accordance with ICH-GCP guidelines and CONSORT reporting standards.
         We hypothesised that {group_type} receiving {intervention} would demonstrate
         significantly better {outcome} compared to those receiving placebo.
-        Methods: A randomised controlled trial design was employed.
+        Methods: A randomised controlled trial design was employed per IRB approval.
         Results: {intervention} produced statistically significant improvements.
         Conclusion: These findings support adoption of {intervention} in clinical practice.
     """).strip()
 
     participants = textwrap.dedent(f"""
-        {total_n} {group_type} were enrolled from three sites between 2021 and 2023.
-        Inclusion criteria: aged 18–65, no prior treatment exposure, written consent obtained.
-        Exclusion criteria: severe comorbidities, inability to complete questionnaires.
+        {total_n} {group_type} were enrolled from three clinical sites between 2021 and 2023
+        under IRB protocol #2021-CT-{ctx['rng'].randint(100,999)}.
+        Inclusion criteria: aged 18–65, no prior treatment exposure, written informed
+        consent obtained per Declaration of Helsinki.
+        Exclusion criteria: severe comorbidities, inability to complete clinical assessments.
         {ctx['flaws_text'].get('participants', '')}
         Participants were randomly assigned to {intervention} (n={n_per_group})
-        or placebo (n={n_per_group}) using block randomisation (block size=4).
+        or placebo (n={n_per_group}) using block randomisation (block size=4)
+        per the CONSORT-compliant allocation sequence.
     """).strip()
 
     statistical_analysis = textwrap.dedent(f"""
-        All analyses were performed using SPSS v27 and Python 3.10.
+        All analyses were performed using SAS v9.4 and Python 3.10 per the
+        pre-registered Statistical Analysis Plan (SAP).
         The primary outcome ({outcome}) was compared between groups at 12 weeks.
         {ctx['flaws_text'].get('statistical_analysis', '')}
         Significance threshold was set at α=0.05. Missing data handled via last
         observation carried forward (LOCF). No corrections for multiple comparisons
-        were pre-specified in the protocol.
+        were pre-specified in the protocol or SAP.
     """).strip()
 
     results = textwrap.dedent(f"""
@@ -276,9 +293,11 @@ def _build_sections(ctx: dict) -> dict:
     discussion = textwrap.dedent(f"""
         The present study demonstrates that {intervention} significantly improves
         {outcome} in {group_type}. These results are consistent with prior
-        mechanistic studies. Limitations include the single-blind design and
+        mechanistic studies and meet the bar for regulatory consideration.
+        Limitations include the single-blind design and
         relatively short follow-up period of 12 weeks. Future work should
-        examine long-term durability of effects and dose-response relationships.
+        examine long-term durability of effects and dose-response relationships
+        per FDA post-marketing surveillance requirements.
         Generalisability may be limited to populations similar to those studied.
     """).strip()
 
@@ -296,21 +315,21 @@ def _build_paper_text(ctx: dict, sections: dict) -> str:
     outcome      = ctx["outcome"]
     field        = ctx["field"]
     return textwrap.dedent(f"""
-        TITLE: Efficacy of {intervention} on {outcome}: A randomised controlled {field}
+        TITLE: Efficacy of {intervention} on {outcome}: A CONSORT-compliant randomised controlled {field}
 
         ABSTRACT
         {sections['abstract']}
 
-        1. PARTICIPANTS
+        1. PARTICIPANTS (CONSORT Items 3-5)
         {sections['participants']}
 
-        2. STATISTICAL ANALYSIS
+        2. STATISTICAL ANALYSIS (CONSORT Item 12)
         {sections['statistical_analysis']}
 
-        3. RESULTS
+        3. RESULTS (CONSORT Items 13-19)
         {sections['results']}
 
-        4. DISCUSSION
+        4. DISCUSSION (CONSORT Items 20-22)
         {sections['discussion']}
 
         ---

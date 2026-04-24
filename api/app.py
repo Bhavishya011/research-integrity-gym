@@ -162,12 +162,14 @@ def tasks():
     from tasks.task2_replication import ReplicationTask
     from tasks.task3_claim_verify import ClaimVerifyTask
     from tasks.task4_citation_check import CitationCheckTask
+    from tasks.task5_fda_approval import FDAApprovalTask
 
     task_list = [
         MethodologyAuditTask().task_info(),
         ReplicationTask().task_info(),
         ClaimVerifyTask().task_info(),
         CitationCheckTask().task_info(),
+        FDAApprovalTask().task_info(),
     ]
     return {"tasks": task_list}
 
@@ -183,9 +185,10 @@ def grader(req: GraderRequest):
     from graders.grader2 import grade_results
     from graders.grader3 import grade_verdict
     from graders.grader4 import grade_citation_report
+    from graders.grader5 import grade_fda_verdict
     from env.models import (
         SubmitAuditPayload, SubmitResultsPayload, SubmitVerdictPayload,
-        SubmitCitationReportPayload, FlawReport,
+        SubmitCitationReportPayload, SubmitFDAVerdictPayload, FlawReport,
     )
 
     task_id      = req.task_id
@@ -210,6 +213,17 @@ def grader(req: GraderRequest):
         elif task_id == "task4_citation_check":
             payload = SubmitCitationReportPayload(**terminal_act)
             score   = grade_citation_report(payload, gt)
+
+        elif task_id == "task5_fda_approval":
+            payload = SubmitFDAVerdictPayload(**terminal_act)
+            # For external grader calls, we create a minimal EpisodeState
+            from env.state import EpisodeState
+            mock_state = EpisodeState(
+                task_id=task_id,
+                flags_raised=state_dict.get("flags_raised", []),
+                code_calls=state_dict.get("code_calls", 0),
+            )
+            score = grade_fda_verdict(payload, gt, mock_state)
 
         else:
             raise HTTPException(status_code=400, detail=f"Unknown task_id: {task_id}")

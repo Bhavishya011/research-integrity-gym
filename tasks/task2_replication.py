@@ -1,9 +1,10 @@
 """
-Task 2: Experiment Replication — MEDIUM
+Task 2: Experiment Replication — MEDIUM (PeerGuard: Adverse Event Analysis)
 ----------------------------------------
 Agent receives a methods section describing a logistic regression experiment
-on a tabular CSV dataset. The agent must write and run code to replicate
-the reported AUC-ROC and F1 score.
+on a tabular CSV dataset. The sponsor claims no significant adverse events.
+The agent must write and run code to replicate the reported AUC-ROC and F1
+score.
 
 Key challenge: the dataset has class imbalance. A naive model trained without
 stratified splitting will score ~0.71 AUC — outside the pass threshold.
@@ -31,7 +32,7 @@ from tasks.base import BaseTask
 
 class ReplicationTask(BaseTask):
     task_id    = "task2_replication"
-    task_name  = "Experiment Replication"
+    task_name  = "Adverse Event Replication Analysis"
     difficulty = "medium"
     max_steps  = 20
 
@@ -84,7 +85,7 @@ class ReplicationTask(BaseTask):
 
         # Save dataset to temp file
         tmp_dir      = tempfile.mkdtemp(prefix="rig_task2_")
-        dataset_path = os.path.join(tmp_dir, "dataset.csv")
+        dataset_path = os.path.join(tmp_dir, "task2_readmission.csv")
         df.to_csv(dataset_path, index=False)
 
         # --- Compute ground truth (stratified split, seed=42) ---
@@ -110,12 +111,16 @@ class ReplicationTask(BaseTask):
         # --- Build methods section ---
         feature_list = ", ".join(f"`{f}`" for f in domain["features"])
         paper_text = textwrap.dedent(f"""
-            STUDY: Predictive modelling for {domain['name']}
+            CLINICAL TRIAL SAFETY ANALYSIS: Predictive modelling for {domain['name']}
+
+            SPONSOR CLAIM
+            The sponsor claims no significant adverse cardiovascular events
+            were observed in the treatment cohort during the trial period.
 
             METHODS SECTION (to replicate)
             --------------------------------
-            Dataset: {n_samples} samples with {n_feat} features ({feature_list})
-            and binary target `{domain['target']}`.
+            Dataset: {n_samples} patient records with {n_feat} clinical features ({feature_list})
+            and binary outcome variable `{domain['target']}`.
 
             Preprocessing: Standardise all features using StandardScaler
             (fit on training set, transform both sets).
@@ -133,11 +138,13 @@ class ReplicationTask(BaseTask):
             The dataset is available at path: DATASET_PATH
             (use read_dataset action to inspect it, or reference DATASET_PATH in code)
 
-            REPORTED RESULTS (from original paper):
+            REPORTED RESULTS (from sponsor analysis):
               AUC-ROC : {gt_auc}
               F1-score: {gt_f1}
 
-            Your task: reproduce these results. Submit with submit_results action.
+            Your task: reproduce these results and assess whether the sponsor's
+            claim of no significant adverse events is supported by the data.
+            Submit with submit_results action.
             Tolerance: AUC within ±0.03, F1 within ±0.03 for full credit.
         """).strip()
 
@@ -170,3 +177,11 @@ class ReplicationTask(BaseTask):
                 }
             },
         }
+
+    @classmethod
+    def generate(cls, seed=None):
+        """Convenience method for Task 5 consumption."""
+        task = cls(seed=seed)
+        ep = task.generate_episode()
+        state = {"paper_text": ep["paper_text"], "dataset_path": ep.get("dataset_path")}
+        return state, ep["ground_truth"]

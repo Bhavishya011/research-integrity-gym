@@ -93,42 +93,44 @@ class TestGrader1:
         """Agent identifies all 4 flaws correctly → 1.0"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
-                {"id": "flaw_2", "taxonomy": "underpowered_sample", "location": "participants"},
-                {"id": "flaw_3", "taxonomy": "undisclosed_exclusion", "location": "results"},
-                {"id": "flaw_4", "taxonomy": "p_value_manipulation", "location": "results"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
+                {"id": "flaw_2", "taxonomy": "insufficient_power_analysis", "location": "participants"},
+                {"id": "flaw_3", "taxonomy": "protocol_deviation_unreported", "location": "results"},
+                {"id": "flaw_4", "taxonomy": "endpoint_switching", "location": "results"},
             ]
         }
         payload = MockAuditPayload(flaws=[
-            MockFlawReport("wrong statistical test", "statistical_analysis", "Chi-square on continuous"),
-            MockFlawReport("underpowered sample", "participants", "n=26 is too small"),
-            MockFlawReport("undisclosed exclusion", "results", "52 recruited but only 45 analyzed"),
-            MockFlawReport("p-value manipulation", "results", "Multiple outcomes tested"),
+            MockFlawReport("unblinded investigator bias", "statistical_analysis", "Unblinded assessor"),
+            MockFlawReport("insufficient power analysis", "participants", "n=26 is too small"),
+            MockFlawReport("protocol deviation unreported", "results", "52 recruited but only 45 analyzed"),
+            MockFlawReport("endpoint switching", "results", "Primary endpoint changed post-hoc"),
         ])
         
         score = grade_audit(payload, ground_truth)
-        assert score == 1.0, f"Expected 1.0, got {score}"
+        # Graders clamp to (0.0001, 0.9999)
+        assert score == 0.9999, f"Expected 0.9999, got {score}"
 
     def test_zero_score_no_flaws(self):
         """Agent submits empty flaws → 0.0"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
             ]
         }
         payload = MockAuditPayload(flaws=[])
         
         score = grade_audit(payload, ground_truth)
-        assert score == 0.0
+        # Graders clamp to (0.0001, 0.9999)
+        assert score == 0.0001
 
     def test_partial_credit_two_flaws(self):
         """Agent identifies 2 of 4 flaws → 0.5"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
-                {"id": "flaw_2", "taxonomy": "underpowered_sample", "location": "participants"},
-                {"id": "flaw_3", "taxonomy": "undisclosed_exclusion", "location": "results"},
-                {"id": "flaw_4", "taxonomy": "p_value_manipulation", "location": "results"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
+                {"id": "flaw_2", "taxonomy": "insufficient_power_analysis", "location": "participants"},
+                {"id": "flaw_3", "taxonomy": "protocol_deviation_unreported", "location": "results"},
+                {"id": "flaw_4", "taxonomy": "endpoint_switching", "location": "results"},
             ]
         }
         payload = MockAuditPayload(flaws=[
@@ -143,12 +145,12 @@ class TestGrader1:
         """False positives reduce score (capped at -0.20)"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
             ]
         }
         # Agent identifies the real flaw (0.25) but adds 5 false positives
         payload = MockAuditPayload(flaws=[
-            MockFlawReport("chi-square wrong", "statistical_analysis", "correct"),
+            MockFlawReport("unblinded investigator", "statistical_analysis", "correct"),
             MockFlawReport("fake flaw 1", "abstract", "not real"),
             MockFlawReport("fake flaw 2", "abstract", "not real"),
             MockFlawReport("fake flaw 3", "abstract", "not real"),
@@ -164,7 +166,7 @@ class TestGrader1:
         """Synonym 'inappropriate method' should match wrong_statistical_test"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
             ]
         }
         payload = MockAuditPayload(flaws=[
@@ -178,7 +180,7 @@ class TestGrader1:
         """Right flaw type, wrong location → 0.10 partial credit"""
         ground_truth = {
             "flaws": [
-                {"id": "flaw_1", "taxonomy": "wrong_statistical_test", "location": "statistical_analysis"},
+                {"id": "flaw_1", "taxonomy": "unblinded_investigator_bias", "location": "statistical_analysis"},
             ]
         }
         payload = MockAuditPayload(flaws=[
@@ -209,7 +211,8 @@ class TestGrader2:
         )
         
         score = grade_results(payload, ground_truth)
-        assert score == 1.0, f"Expected 1.0, got {score}"
+        # Graders clamp to (0.0001, 0.9999)
+        assert score == 0.9999, f"Expected 0.9999, got {score}"
 
     def test_within_tight_tolerance(self):
         """AUC and F1 within ±0.01 → 0.45 + 0.35 = 0.80 (no interp keywords)"""
@@ -246,8 +249,8 @@ class TestGrader2:
         )
         
         score = grade_results(payload, ground_truth)
-        # 0.45 + 0.35 + 0.20 = 1.0
-        assert score == 1.0, f"Expected 1.0, got {score}"
+        # 0.45 + 0.35 + 0.20 = 1.0, clamped to 0.9999
+        assert score == 0.9999, f"Expected 0.9999, got {score}"
 
 
 # ===========================================================================
@@ -361,7 +364,8 @@ class TestGrader4:
 
         from graders.grader4 import grade_citation_report
         score = grade_citation_report(payload, ground_truth)
-        assert score == 1.0, f"Expected 1.0, got {score}"
+        # Graders clamp to (0.0001, 0.9999)
+        assert score == 0.9999, f"Expected 0.9999, got {score}"
 
     def test_wrong_citation_id(self):
         """Identified wrong citation → lose 0.40 points"""
@@ -452,6 +456,95 @@ class TestGrader4:
         score = grade_citation_report(payload, ground_truth)
         # 0.40 + 0.30 + 0.15 + 0.0 = 0.85
         assert 0.83 <= score <= 0.87, f"Expected 0.83-0.87, got {score}"
+
+
+# ===========================================================================
+# Grader 5 Tests: FDA Approval Verdict
+# ===========================================================================
+
+# Mock for FDA verdict payload
+class MockFDADecision:
+    def __init__(self, value: str):
+        self.value = value
+
+
+class MockFDAVerdictPayload:
+    def __init__(self, decision: str, justification_flags: list):
+        self.decision = MockFDADecision(decision)
+        self.justification_flags = justification_flags
+
+
+class TestGrader5:
+    """Tests for the FDA verdict grader."""
+
+    def _make_state(self, flags_raised=None, code_calls=0):
+        """Create a mock EpisodeState for testing."""
+        from env.state import EpisodeState
+        state = EpisodeState(
+            task_id="task5_fda_approval",
+            flags_raised=flags_raised or [],
+            code_calls=code_calls,
+        )
+        return state
+
+    def test_perfect_verdict_with_all_flags(self):
+        """Correct REJECT with comprehensive flags → high score"""
+        from graders.grader5 import grade_fda_verdict
+        ground_truth = {
+            "expected_verdict": "REJECT",
+        }
+        payload = MockFDAVerdictPayload(
+            decision="REJECT",
+            justification_flags=[
+                "unblinded investigator bias in protocol",
+                "insufficient power analysis",
+                "protocol deviation unreported in CONSORT flow",
+                "class imbalance in adverse event data",
+                "deleted patient records in efficacy dataset",
+                "citation fabrication - teratogenic effects contraindicated",
+            ]
+        )
+        state = self._make_state(
+            flags_raised=[
+                {"flaw_type": "unblinded investigator", "description": "detection bias", "fabrication_type": "", "evidence": ""},
+                {"flaw_type": "underpowered sample", "description": "power analysis missing", "fabrication_type": "", "evidence": ""},
+                {"flaw_type": "exclusion", "description": "patients excluded", "fabrication_type": "", "evidence": ""},
+                {"flaw_type": "class imbalance", "description": "imbalanced dataset", "fabrication_type": "", "evidence": ""},
+                {"citation_id": 2, "flaw_type": "directional", "description": "teratogenic", "fabrication_type": "directional", "evidence": "safe vs harmful"},
+            ],
+            code_calls=3,
+        )
+        score = grade_fda_verdict(payload, ground_truth, state)
+        assert score >= 0.85, f"Expected >= 0.85, got {score}"
+
+    def test_wrong_verdict(self):
+        """Agent approves when should reject → lose verdict points"""
+        from graders.grader5 import grade_fda_verdict
+        ground_truth = {
+            "expected_verdict": "REJECT",
+        }
+        payload = MockFDAVerdictPayload(
+            decision="APPROVE",
+            justification_flags=["looks good"]
+        )
+        state = self._make_state()
+        score = grade_fda_verdict(payload, ground_truth, state)
+        assert score < 0.3, f"Expected < 0.3, got {score}"
+
+    def test_correct_verdict_no_investigation(self):
+        """Correct REJECT but no flags or code → only verdict points"""
+        from graders.grader5 import grade_fda_verdict
+        ground_truth = {
+            "expected_verdict": "REJECT",
+        }
+        payload = MockFDAVerdictPayload(
+            decision="REJECT",
+            justification_flags=[]
+        )
+        state = self._make_state()
+        score = grade_fda_verdict(payload, ground_truth, state)
+        # Only 0.20 for correct verdict, nothing else
+        assert 0.15 <= score <= 0.25, f"Expected 0.15-0.25, got {score}"
 
 
 

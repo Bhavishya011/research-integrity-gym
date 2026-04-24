@@ -31,7 +31,7 @@ except ImportError:
 from env.models import (
     Action, ActionType, Observation, Reward,
     SubmitAuditPayload, SubmitResultsPayload, SubmitVerdictPayload,
-    SubmitCitationReportPayload,
+    SubmitCitationReportPayload, SubmitFDAVerdictPayload,
 )
 from env.reward import compute_step_reward, compute_terminal_reward
 from env.state import EpisodeState
@@ -48,11 +48,13 @@ def _load_task_registry() -> None:
     from tasks.task2_replication import ReplicationTask
     from tasks.task3_claim_verify import ClaimVerifyTask
     from tasks.task4_citation_check import CitationCheckTask
+    from tasks.task5_fda_approval import FDAApprovalTask
     _TASK_REGISTRY = {
         "task1_methodology_audit": MethodologyAuditTask,
         "task2_replication":       ReplicationTask,
         "task3_claim_verify":      ClaimVerifyTask,
         "task4_citation_check":    CitationCheckTask,
+        "task5_fda_approval":      FDAApprovalTask,
     }
 
 
@@ -140,6 +142,7 @@ class ResearchIntegrityEnv:
         "task2_replication",
         "task3_claim_verify",
         "task4_citation_check",
+        "task5_fda_approval",
     ]
 
     def __init__(self, seed: Optional[int] = None) -> None:
@@ -232,6 +235,10 @@ class ResearchIntegrityEnv:
 
         elif atype == ActionType.submit_report:
             step_r, comp, grader_score = self._handle_submit_report(action, state)
+            done = True
+
+        elif atype == ActionType.submit_fda_verdict:
+            step_r, comp, grader_score = self._handle_submit_fda_verdict(action, state)
             done = True
 
         else:
@@ -495,6 +502,22 @@ class ResearchIntegrityEnv:
         step_r, comp = compute_terminal_reward(grader_score, state)
         return step_r, comp, grader_score
 
+    def _handle_submit_fda_verdict(
+        self, action: Action, state: EpisodeState
+    ) -> tuple[float, object, float]:
+        """Terminal action for Task 5: FDA Approval capstone."""
+        from graders.grader5 import grade_fda_verdict
+        payload = action.fda_verdict_payload
+        if payload is None:
+            return 0.0, {}, 0.0
+        state.terminal_action = {
+            "decision":            payload.decision.value,
+            "justification_flags": payload.justification_flags,
+        }
+        grader_score = grade_fda_verdict(payload, state.ground_truth, state)
+        step_r, comp = compute_terminal_reward(grader_score, state)
+        return step_r, comp, grader_score
+
     # ------------------------------------------------------------------
     # Helpers
     # ------------------------------------------------------------------
@@ -512,6 +535,15 @@ class ResearchIntegrityEnv:
         paper_visible = state.paper_text
         if last_section_text:
             paper_visible += f"\n\n--- Section '{state.sections_read[-1]}' ---\n{last_section_text}"
+
+        # Prepend FDA persona prompt for Task 5
+        if state.task_id == "task5_fda_approval":
+            persona = (
+                "You are an autonomous FDA Lead Regulator. Your job is to audit "
+                "clinical trial submissions using tools, execute Python to verify "
+                "raw patient datasets, and catch statistical manipulation.\n\n"
+            )
+            paper_visible = persona + paper_visible
 
         return Observation(
             task_id           = state.task_id,
@@ -595,6 +627,31 @@ def _run_sandboxed(code: str, dataset_path: str = "") -> dict:
 
 # Normalised synonyms for flaw taxonomy
 _FLAW_SYNONYMS: dict[str, list[str]] = {
+    # --- Medical taxonomy (primary keys for PeerGuard) ---
+    "unblinded_investigator_bias": [
+        "unblinded", "investigator bias", "detection bias", "observer bias",
+        "assessor bias", "blinding", "single-blind", "open-label",
+        # Legacy synonyms for backward compat
+        "wrong test", "incorrect test", "t-test", "t test",
+        "chi-square", "anova", "parametric", "non-parametric",
+        "wrong statistical", "inappropriate test",
+    ],
+    "insufficient_power_analysis": [
+        "power analysis", "insufficient power", "underpowered",
+        "sample size", "small n", "insufficient participants",
+        "low power", "n too small",
+    ],
+    "protocol_deviation_unreported": [
+        "protocol deviation", "unreported deviation", "protocol violation",
+        "exclusion", "excluded", "outlier", "removed", "undisclosed",
+        "missing data", "data exclusion", "selective",
+    ],
+    "endpoint_switching": [
+        "endpoint switching", "outcome switching", "primary endpoint",
+        "p-value", "p value", "fishing", "hacking", "selective reporting",
+        "multiple comparison", "bonferroni", "significance threshold",
+    ],
+    # --- Legacy taxonomy (kept for backward compat with old episodes) ---
     "wrong_statistical_test": [
         "wrong test", "incorrect test", "t-test", "t test",
         "chi-square", "anova", "parametric", "non-parametric",
@@ -694,4 +751,16 @@ def _available_actions(state: EpisodeState) -> list[str]:
         return base + ["flag_concern", "submit_verdict"]
     elif tid == "task4_citation_check":
         return base + ["check_citation", "flag_fabrication", "submit_report"]
+    elif tid == "task5_fda_approval":
+        # CRITICAL: Only investigatory actions from all sub-tasks.
+        # NO sub-task terminal actions (submit_audit, submit_results, etc.)
+        # — those would trigger done=True and kill the episode prematurely.
+        # The ONLY way to end Task 5 is submit_fda_verdict.
+        return base + [
+            "flag_flaw",           # from Task 1
+            "flag_concern",        # from Task 3
+            "check_citation",      # from Task 4
+            "flag_fabrication",    # from Task 4
+            "submit_fda_verdict",  # Task 5 sole terminal
+        ]
     return base

@@ -11,77 +11,77 @@ from __future__ import annotations
 
 # Comprehensive synonym list for fair matching
 # Agents may phrase flaws in many valid ways — we accept all reasonable variants
+# Primary keys use PeerGuard medical taxonomy; synonym lists include legacy terms
 _FLAW_SYNONYMS: dict[str, list[str]] = {
-    "wrong_statistical_test": [
-        # Direct matches
+    "unblinded_investigator_bias": [
+        # Direct matches — CONSORT blinding violations
+        "unblinded", "investigator bias", "detection bias", "observer bias",
+        "assessor bias", "blinding", "single-blind", "open-label",
+        "allocation concealment", "outcome assessor", "blinded assessor",
+        # Legacy: wrong_statistical_test synonyms (backward compat)
         "wrong test", "incorrect test", "inappropriate test", "wrong statistical",
         "statistical test", "misapplied test", "misused test",
-        # Specific tests
         "t-test", "t test", "ttest", "chi-square", "chi square", "chisquare",
         "chi-sq", "anova", "mann-whitney", "mann whitney", "wilcoxon",
         "pearson", "spearman", "kruskal", "fisher exact",
-        # Conceptual
         "parametric", "non-parametric", "nonparametric", "normality assumption",
         "distributional assumption", "test assumption", "violated assumption",
-        # Phrasing variants
         "inappropriate statistical", "inappropriate method", "incorrect method",
         "wrong method", "invalid test", "unsuitable test", "mismatched test",
         "test mismatch", "analysis mismatch", "wrong analysis",
         "inappropriate analysis", "incorrect analysis", "flawed analysis",
-        # Outcome type issues
         "continuous outcome", "categorical outcome", "ordinal", "binary outcome",
         "data type mismatch", "variable type",
     ],
-    "underpowered_sample": [
-        # Direct matches
+    "insufficient_power_analysis": [
+        # Direct matches — CONSORT power/sample size
+        "insufficient power", "power analysis", "sample size calculation",
+        "ICH-GCP", "CONSORT Item 7",
+        # Legacy: underpowered_sample synonyms
         "sample size", "underpowered", "small n", "small sample",
         "insufficient sample", "insufficient participants", "insufficient subjects",
-        "low power", "power analysis", "n too small", "power",
-        # Phrasing variants
+        "low power", "n too small", "power",
         "inadequate sample", "limited sample", "small group", "few participants",
         "few subjects", "small cohort", "inadequate n", "low n",
         "underpowered study", "insufficient n", "sample too small",
         "not enough participants", "not enough subjects", "limited participants",
-        # Statistical power
         "statistical power", "power calculation", "effect size", "detectable effect",
         "type ii error", "type 2 error", "beta error", "false negative rate",
-        # Numbers that indicate awareness
         "n=", "n =", "per group", "per arm", "each group", "each arm",
     ],
-    "undisclosed_exclusion": [
-        # Direct matches
+    "protocol_deviation_unreported": [
+        # Direct matches — CONSORT protocol deviation
+        "protocol deviation", "unreported deviation", "protocol violation",
+        "CONSORT flow", "flow diagram", "per-protocol", "ITT",
+        # Legacy: undisclosed_exclusion synonyms
         "exclusion", "excluded", "outlier", "removed", "undisclosed",
         "missing data", "data exclusion", "selective", "missing participants",
-        # Phrasing variants
         "unreported exclusion", "hidden exclusion", "silent exclusion",
         "participant removal", "data removal", "unexplained removal",
         "participants dropped", "dropped participants", "attrition",
         "lost to follow", "dropout", "drop out", "drop-out", "withdrew",
         "withdrawal", "discontinued", "did not complete",
-        # Discrepancy language
         "discrepancy", "mismatch", "inconsistent", "doesn't match",
         "does not match", "differ", "different n", "reported n",
         "recruited vs", "enrolled vs", "analyzed vs", "analysed vs",
-        # Numbers
         "missing", "unaccounted", "not reported", "unclear how many",
     ],
-    "p_value_manipulation": [
-        # Direct matches
+    "endpoint_switching": [
+        # Direct matches — CONSORT endpoint switching
+        "endpoint switching", "outcome switching", "primary endpoint",
+        "pre-registered endpoint", "post-hoc primary", "endpoint change",
+        # Legacy: p_value_manipulation synonyms
         "p-value", "p value", "pvalue", "p-hacking", "p hacking", "phacking",
         "fishing", "hacking", "selective reporting", "cherry pick",
-        # Multiple comparisons
         "multiple comparison", "multiple comparisons", "bonferroni",
         "multiple testing", "multiplicity", "family-wise", "familywise",
         "correction", "adjustment", "adjusted p", "uncorrected",
-        # Outcomes
         "multiple outcomes", "multiple endpoints", "secondary outcome",
-        "primary outcome", "outcome switching", "endpoint switching",
-        # Conceptual
+        "primary outcome", "outcome switching",
         "significance threshold", "alpha level", "type i error", "type 1 error",
         "false positive", "significant result", "selective", "selectively reported",
         "only significant", "only reported significant", "unreported outcomes",
         "file drawer", "publication bias",
-        # Phrasing variants
         "significance hunting", "data dredging", "outcome fishing",
         "harking", "hypothesizing after", "post-hoc", "post hoc", "posthoc",
     ],

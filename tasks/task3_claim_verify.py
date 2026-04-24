@@ -1,14 +1,14 @@
 """
-Task 3: Claim Verification Under Ambiguity — HARD
+Task 3: Claim Verification Under Ambiguity — HARD (PeerGuard: Efficacy Claim Audit)
 ---------------------------------------------------
-A paper makes a statistically significant claim about treatment efficacy.
-The claim is subtly wrong: the authors silently excluded outliers, which
+A sponsor claims significant tumor shrinkage (p < 0.05) in a clinical trial.
+The claim is subtly wrong: the authors silently excluded patient records, which
 changes the result from significant to non-significant.
 
 The agent must:
-  1. Read the paper's claim
-  2. Load and analyse the raw dataset independently
-  3. Detect the discrepancy
+  1. Read the sponsor's efficacy claim
+  2. Load and analyse the raw patient dataset independently
+  3. Detect the discrepancy (15 silently deleted patient records)
   4. Submit a verdict with correct statistics
 
 Ground truth is fully deterministic — the "undisclosed exclusion" is a hard
@@ -29,7 +29,7 @@ from tasks.base import BaseTask
 
 class ClaimVerifyTask(BaseTask):
     task_id    = "task3_claim_verify"
-    task_name  = "Claim Verification"
+    task_name  = "Efficacy Claim Verification"
     difficulty = "hard"
     max_steps  = 20
 
@@ -40,31 +40,31 @@ class ClaimVerifyTask(BaseTask):
         # --- Procedural domain variation ---
         domains = [
             {
-                "intervention": "Drug A",
-                "outcome":      "recovery_days",
-                "unit":         "days",
-                "direction":    "lower",     # lower is better
-                "field":        "clinical trial",
+                "intervention": "Compound XR-7",
+                "outcome":      "tumor_volume_mm3",
+                "unit":         "mm³",
+                "direction":    "lower",     # lower is better (tumor shrinkage)
+                "field":        "Phase III oncology trial",
             },
             {
-                "intervention": "Training Program B",
-                "outcome":      "test_score",
-                "unit":         "points",
-                "direction":    "higher",
-                "field":        "educational study",
+                "intervention": "Biologic Agent TZ-4",
+                "outcome":      "lesion_count",
+                "unit":         "count",
+                "direction":    "lower",
+                "field":        "Phase II oncology trial",
             },
             {
-                "intervention": "Supplement C",
+                "intervention": "Immunotherapy ICI-9",
                 "outcome":      "biomarker_level",
                 "unit":         "units/mL",
                 "direction":    "lower",
-                "field":        "biochemistry study",
+                "field":        "Phase III immunology trial",
             },
         ]
         domain = rng.choice(domains)
 
         n_per_group = 75   # total 150
-        n_outliers  = rng.choice([14, 16, 18])   # silently excluded by authors
+        n_outliers  = rng.choice([13, 15, 17])   # silently excluded by sponsor
 
         # --- Generate full dataset (what agent sees) ---
         # Treatment group: slightly better outcome but overlapping with control
@@ -141,14 +141,15 @@ class ClaimVerifyTask(BaseTask):
             TITLE: Effects of {domain['intervention']} on {domain['outcome']}:
                    A randomised {domain['field']}
 
-            ABSTRACT
+            SPONSOR CLAIM
+            The sponsor claims significant tumor shrinkage (p < 0.05).
             {domain['intervention']} {direction_word} {domain['outcome']} by {pct_change}%
             compared to placebo (p={p_clean}), representing a clinically significant
-            improvement in outcomes.
+            improvement in patient outcomes.
 
             METHODS
-            {2 * n_per_group} participants were randomly assigned to {domain['intervention']}
-            (n={n_per_group}) or placebo (n={n_per_group}).
+            {2 * n_per_group} patients were randomly assigned to {domain['intervention']}
+            (n={n_per_group}) or placebo (n={n_per_group}) under IRB approval.
             The primary endpoint was {domain['outcome']} ({domain['unit']}) at 8 weeks.
             Statistical analysis used an independent samples t-test.
             Significance threshold: α=0.05.
@@ -162,14 +163,15 @@ class ClaimVerifyTask(BaseTask):
               p-value:   {p_clean}
 
             CONCLUSION
-            {domain['intervention']} is effective and should be considered for
-            routine use. Results were consistent across pre-specified subgroups.
+            {domain['intervention']} demonstrates significant efficacy and should be
+            considered for regulatory approval. Results were consistent across
+            pre-specified subgroups.
 
             ---
-            The raw dataset ({2 * n_per_group} rows) is available via read_dataset.
+            The raw dataset ({2 * n_per_group} patient records) is available via read_dataset.
             Columns: participant_id, group (treatment/control), {domain['outcome']}
 
-            Your task: independently verify the claim that {domain['intervention']}
+            Your task: independently verify the sponsor's claim that {domain['intervention']}
             significantly {direction_word} {domain['outcome']} (p={p_clean}).
             Submit your verdict with submit_verdict.
         """).strip()
@@ -231,3 +233,11 @@ class ClaimVerifyTask(BaseTask):
                 }
             },
         }
+
+    @classmethod
+    def generate(cls, seed=None):
+        """Convenience method for Task 5 consumption."""
+        task = cls(seed=seed)
+        ep = task.generate_episode()
+        state = {"paper_text": ep["paper_text"], "dataset_path": ep.get("dataset_path")}
+        return state, ep["ground_truth"]

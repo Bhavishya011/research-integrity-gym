@@ -267,3 +267,13 @@ def baseline():
         return scores
     except json.JSONDecodeError:
         return {"raw_output": result.stdout[:3000]}
+
+
+# ---------------------------------------------------------------------------
+# Mount Gradio demo UI at root
+# ---------------------------------------------------------------------------
+import gradio as gr
+from app import demo as gradio_demo
+
+app = gr.mount_gradio_app(app, gradio_demo, path="/")
+

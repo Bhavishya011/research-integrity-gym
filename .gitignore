@@ -22,3 +22,8 @@ rig_sandbox_*.py
 # OS
 .DS_Store
 Thumbs.db
+
+# Large model files (push to HF Space only, not GitHub)
+peerguard_lora_final/
+peerguard-sft-warmstart/
+peerguard-ckpt/

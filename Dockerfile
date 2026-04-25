@@ -1,28 +1,28 @@
-# Use most common Python image (likely cached in judge's infrastructure)
-FROM python:3.11-slim
+# GPU-enabled Docker image for HuggingFace Spaces (A10G)
+FROM python:3.11
 
-# HuggingFace Spaces requires port 7860
 EXPOSE 7860
 
-# Non-root user — security best practice
 RUN useradd -m -u 1000 appuser
 
 WORKDIR /app
 
-# Install deps first (cached layer — only rebuilds when requirements change)
+# Install PyTorch with CUDA support first (large layer, cached)
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cu121
+
+# Install project dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copy project
+# Copy project files (including peerguard_lora_final/)
 COPY . .
 
-# Give appuser ownership
 RUN chown -R appuser:appuser /app
 USER appuser
 
-# Health check — judges ping /health to confirm the Space is alive
-HEALTHCHECK --interval=30s --timeout=10s --start-period=20s --retries=3 \
+# Longer start period to allow model download on first run
+HEALTHCHECK --interval=30s --timeout=10s --start-period=180s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')"
 
 CMD ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "7860"]

@@ -51,7 +51,7 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 **GRPO Reward Curve & Loss Curve:**
 <div style="display: flex; gap: 10px;">
   <img src="docs/grpo_reward_curve.png" alt="GRPO Reward Curve" width="49%">
-  <img src="docs/grpo_loss_curve.png.png" alt="SFT Loss Curve" width="49%">
+  <img src="docs/grpo_loss_curve.png" alt="SFT Loss Curve" width="49%">
 </div>
 
 *(Note: The model learned to maximize the deterministic reward by avoiding false-positive hallucination penalties.)*

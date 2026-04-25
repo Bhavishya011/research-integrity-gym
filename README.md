@@ -61,7 +61,7 @@ We use **GRPO (Group Relative Policy Optimization)** combined with an **SFT Warm
 ![Training Reward Curve](grpo_reward_curve.png)
 > **Figure 1**: GRPO Reward Curve. The environment's deterministic grader is the sole reward signal. The curve shows the agent moving from the baseline SFT capability toward a perfect 1.0 score.
 
-![SFT Loss Curve](grpo_loss_curve.png)
+![SFT Loss Curve](grpo_loss_curve.png.png)
 > **Figure 2**: SFT Warmstart Loss. Demonstrates the model learning the JSON schema and ground-truth taxonomy before RL begins.
 
 *(Note: Baseline Llama-3-8B-Instruct scores ~0.40 on Task 1. Post-GRPO, the agent consistently achieves >0.85).*

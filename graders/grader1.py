@@ -104,7 +104,13 @@ _FLAW_SYNONYMS: dict[str, list[str]] = {
 
 def _type_matches(submitted_type: str, taxonomy: str) -> bool:
     s = submitted_type.lower().strip()
-    return any(syn in s for syn in _FLAW_SYNONYMS.get(taxonomy, [taxonomy.replace("_", " ")]))
+    # Exact match (with or without underscores)
+    if s == taxonomy.lower() or s == taxonomy.lower().replace("_", " "):
+        return True
+    # Also check underscored version of submitted text
+    s_normalized = s.replace("_", " ")
+    synonyms = _FLAW_SYNONYMS.get(taxonomy, [taxonomy.replace("_", " ")])
+    return any(syn in s for syn in synonyms) or any(syn in s_normalized for syn in synonyms)
 
 
 def _location_matches(submitted_loc: str, gt_location: str) -> bool:

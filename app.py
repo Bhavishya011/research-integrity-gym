@@ -109,7 +109,6 @@ def _generate(system_prompt, user_content, max_tokens=1024, temperature=0.7, use
             pad_token_id=_tokenizer.eos_token_id,
             do_sample=True,
             temperature=temperature,
-            repetition_penalty=1.15,
         )
 
     # Re-enable LoRA after generation

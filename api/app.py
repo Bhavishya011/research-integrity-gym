@@ -73,7 +73,7 @@ class GraderRequest(BaseModel):
 # Endpoints
 # ---------------------------------------------------------------------------
 
-@app.get("/")
+@app.get("/api")
 def root():
     """Root endpoint - redirects to API documentation."""
     return {

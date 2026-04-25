@@ -87,8 +87,8 @@ def _load_model():
         print("Model loaded successfully!")
 
 
-def _generate(system_prompt, user_content, max_tokens=1024, temperature=0.7):
-    """Run inference with the trained LoRA model."""
+def _generate(system_prompt, user_content, max_tokens=1024, temperature=0.7, use_lora=True):
+    """Run inference. Set use_lora=False for Task 5 to use base model's code-gen ability."""
     _load_model()
     messages = [
         {"role": "system", "content": system_prompt},
@@ -97,6 +97,11 @@ def _generate(system_prompt, user_content, max_tokens=1024, temperature=0.7):
     inputs = _tokenizer.apply_chat_template(
         messages, tokenize=True, add_generation_prompt=True, return_tensors="pt"
     ).to("cuda")
+
+    # For Task 5: disable LoRA so base Llama-3-Instruct generates Python code
+    if not use_lora:
+        _model.disable_adapter_layers()
+
     with torch.no_grad():
         outputs = _model.generate(
             input_ids=inputs,
@@ -104,7 +109,13 @@ def _generate(system_prompt, user_content, max_tokens=1024, temperature=0.7):
             pad_token_id=_tokenizer.eos_token_id,
             do_sample=True,
             temperature=temperature,
+            repetition_penalty=1.15,
         )
+
+    # Re-enable LoRA after generation
+    if not use_lora:
+        _model.enable_adapter_layers()
+
     return _tokenizer.batch_decode(outputs[:, inputs.shape[1]:], skip_special_tokens=True)[0]
 
 
@@ -212,12 +223,13 @@ def run_task5(seed_val, use_trained):
         report = _build_task5_report(grader_score, gt, sandbox_log, is_baseline=True)
         return paper_text, agent_output, report, sandbox_log
 
-    # Step 1: Generate Python analysis code
+    # Step 1: Generate Python analysis code (use base model, not LoRA)
     agent_output = _generate(
         TASK5_SYS_PROMPT,
         f"NDA Submission:\n{paper_text}",
         max_tokens=1536,
-        temperature=0.4,
+        temperature=0.7,
+        use_lora=False,  # LoRA is Task 1 specialist — base model handles code gen
     )
 
     code = _extract_python(agent_output)

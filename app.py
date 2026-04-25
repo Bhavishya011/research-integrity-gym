@@ -406,14 +406,29 @@ def _build_task5_report(score, gt, sandbox_log, is_baseline=False):
 # Unified Router
 # ---------------------------------------------------------------------------
 
-def run_agent(seed_val, task_choice, use_trained):
-    """Route to the correct task handler."""
+def run_agent(seed_val, task_choice, use_trained, history):
+    """Route to the correct task handler and log history."""
+    model_str = "PeerGuard" if use_trained else "Baseline"
+    task_str = "Task 5" if "Task 5" in task_choice else "Task 1"
+    
     if task_choice == "Task 5 — NDA Data Review":
         paper, agent_out, report, sandbox = run_task5(seed_val, use_trained)
-        return paper, agent_out, report, sandbox
     else:
         paper, agent_out, report = run_task1(seed_val, use_trained)
-        return paper, agent_out, report, ""
+        sandbox = ""
+
+    # Parse the score out of the report
+    try:
+        score_line = [line for line in report.split('\n') if "Score:" in line][0]
+        score = score_line.split(':')[1].split('/')[0].strip()
+    except Exception:
+        score = "0.0000"
+
+    # Append to history (most recent first)
+    new_entry = [seed_val, task_str, model_str, score]
+    history = [new_entry] + (history or [])
+
+    return paper, agent_out, report, sandbox, history, history
 
 
 # ---------------------------------------------------------------------------
@@ -487,10 +502,23 @@ with gr.Blocks(theme=gr.themes.Soft(primary_hue="green"), css=CSS, title="PeerGu
             with gr.Tab("🖥️ Sandbox Terminal"):
                 sandbox_out = gr.Textbox(label="OpenEnv Sandbox stdout/stderr", lines=18, interactive=False)
 
+    with gr.Row():
+        gr.Markdown("### 📜 Session Audit History")
+    with gr.Row():
+        history_state = gr.State([])
+        history_df = gr.Dataframe(
+            headers=["Episode Seed", "Task", "Model", "Grader Score"],
+            datatype=["number", "str", "str", "str"],
+            value=[],
+            interactive=False,
+            row_count=5,
+            col_count=(4, "fixed"),
+        )
+
     run_btn.click(
         fn=run_agent,
-        inputs=[seed_input, task_choice, use_trained],
-        outputs=[protocol_out, agent_out, grader_out, sandbox_out],
+        inputs=[seed_input, task_choice, use_trained, history_state],
+        outputs=[protocol_out, agent_out, grader_out, sandbox_out, history_df, history_state],
     )
 
 if __name__ == "__main__":

@@ -65,6 +65,8 @@ A massive long-horizon capstone task. The agent must read 4 NDA sections, execut
 
 ## ⏱️ Quick Start for Reviewers (3 minutes)
 
+![PeerGuard Gradio UI](gradio_ui.png)
+
 1. Open the live UI: [https://huggingface.co/spaces/Nexus18/research-integrity-gym](https://huggingface.co/spaces/Nexus18/research-integrity-gym)
 2. Select **"Task 5 — NDA Data Review"** from the Control Panel.
 3. Click **"🚀 Deploy FDA Auditor"**.
@@ -74,6 +76,8 @@ A massive long-horizon capstone task. The agent must read 4 NDA sections, execut
 ---
 
 ## 💡 Core Innovations
+
+![PeerGuard Architecture Flowchart](architecture.png)
 
 1. **Sandboxed Code Execution in the Loop**: The agent cannot solve Task 5 just by reading text. It *must* write and execute Python code against a hidden CSV dataset to discover class imbalances and missing patients.
 2. **Deterministic RLVR Grading**: We explicitly reject "LLM-as-a-judge" grading. Every point of reward is calculated deterministically by matching the agent's actions and generated flags against the procedurally generated ground truth.

@@ -14,7 +14,7 @@ Here is how we built it, why our early training runs collapsed, and how the agen
 
 ## The Architecture: Deterministic Sandboxing
 
-*(Insert Diagram 1 Here: Architecture Flowchart showing Llama-3-8B -> OpenEnv Sandbox -> Deterministic Grader -> GRPO Policy Update)*
+![PeerGuard Architecture Flowchart](../architecture.png)
 
 Instead of asking an LLM if a clinical trial protocol "looks correct," PeerGuard is forced to execute verifiable actions.
 
@@ -24,7 +24,10 @@ The environment then parses that payload using regex and mathematically verifies
 
 ## The RL Pipeline: TRL, GRPO, and Unsloth
 
-*(Insert Diagram 2 Here: The Reward Curve from WandB/Jupyter showing grader_reward climbing to 0.9999)*
+<div style="display: flex; gap: 10px;">
+  <img src="grpo_reward_curve.png" alt="GRPO Reward Curve" width="49%">
+  <img src="grpo_loss_curve.png" alt="SFT Loss Curve" width="49%">
+</div>
 
 We fine-tuned the model on an Nvidia A10G using Hugging Face’s `GRPOTrainer` and `Unsloth`. But getting the policy gradient to actually converge was a fight.
 
@@ -40,7 +43,7 @@ In our early runs, the loss was thrashing and rewards were flatlining at zero. T
 
 ## The Real Test: Zero-Shot Code Generation
 
-*(Insert Diagram 3 Here: Gradio UI Screenshot showing the Protocol, the generated Pandas script, and the Sandbox Terminal output)*
+![PeerGuard UI showing Zero-Shot Generalization](../gradio_ui.png)
 
 Passing the methodology audit (Task 1) was great, but we wanted to see if the environment could handle complex, long-horizon data verification.
 

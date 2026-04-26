@@ -18,11 +18,19 @@ An OpenEnv-compliant RL training environment where AI agents act as **FDA Lead R
 
 ## 🛑 The Verification Gap
 
-The scientific replication crisis affects an estimated 50–70% of published research. In clinical trials, a methodological flaw or undisclosed data exclusion isn't just a statistical error—it costs lives.
+The scientific replication crisis affects an estimated 50–70% of published research. In clinical trials, a methodological flaw or undisclosed data exclusion isn't just a statistical error—it costs lives. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** and leading to dangerous, wide-scale drug approvals (Source: *RetractionWatch / BMJ*). 
 
 Current LLMs are incredible at *generation* but fail catastrophically at rigorous, multi-step *verification*. When presented with a complex clinical protocol and raw CSV data, baseline models hallucinate, struggle to follow strict reporting schemas, and fail to independently verify biostatistical claims.
 
 **PeerGuard is the direct fix.** It provides a Reinforcement Learning with Verifiable Rewards (RLVR) environment to transition LLMs from "helpful chat assistants" into "reliable, autonomous FDA regulators" that trust nothing, execute code to verify everything, and output deterministic findings.
+
+---
+
+## 📚 Citations & Inspiration
+
+Our deterministic RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning for verifiable reasoning.
+
+*   **Reward Ideas:** Inspired by [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
 
 ---
 

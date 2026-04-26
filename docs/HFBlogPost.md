@@ -6,9 +6,11 @@
 
 When building AI agents to handle high-stakes regulatory tasks—like auditing clinical trials or reviewing New Drug Applications (NDAs)—the industry relies heavily on "LLM-as-a-Judge" evaluation. 
 
-The problem? LLMs are easily manipulated soft graders. They hallucinate partial credit, struggle with strict biostatistics, and can be fooled by polite, confident formatting. In a software demo, that’s an edge case. At the FDA, a hallucinated drug approval costs lives.
+The problem? LLMs are easily manipulated soft graders. They hallucinate partial credit, struggle with strict biostatistics, and can be fooled by polite, confident formatting. In a software demo, that’s an edge case. At the FDA, a hallucinated drug approval costs lives. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** and leading to dangerous, wide-scale drug approvals (Source: *RetractionWatch / BMJ*). 
 
 For the Meta PyTorch × Scaler Hackathon, our team decided to kill the soft-grading system. We built **PeerGuard**, an autonomous Review Board agent trained entirely inside a deterministic OpenEnv sandbox. If the math is wrong, the agent gets a zero. No partial credit. No vibes. Just Reinforcement Learning with Verifiable Rewards (RLVR).
+
+Our RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning, specifically the reward ideas outlined in [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
 
 Here is how we built it, why our early training runs collapsed, and how the agent achieved zero-shot generalization on raw CSV data.
 

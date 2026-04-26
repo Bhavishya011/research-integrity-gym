@@ -60,10 +60,10 @@ Our deterministic RLVR reward shaping strategies and verifiable environment desi
 
 All numbers below are derived from live environment testing. 
 
-### Task 1 (Methodology Audit): GRPO Training Delta
+### Task 1 (Methodology Audit): SFT + GRPO Training Delta
 The agent must find planted flaws in the protocol text and output a strict JSON schema.
 *   **Baseline (Untrained Llama-3-8B):** `~0.4000` (Hallucinates flaws, fails JSON formatting).
-*   **PeerGuard (GRPO-Trained LoRA):** **`0.9999`** (+150% improvement). The agent perfectly identifies flaws and strictly adheres to the schema.
+*   **PeerGuard (SFT Warmstart + GRPO-Trained LoRA):** **`0.9999`** (+150% improvement). The agent was first warm-started via Supervised Fine-Tuning (SFT) to learn the JSON schema, and then optimized via GRPO to perfectly identify flaws.
 
 **Baseline vs Trained Performance & Reward Curves:**
 <div style="display: flex; gap: 10px;">

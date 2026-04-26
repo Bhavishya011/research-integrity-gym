@@ -24,7 +24,7 @@ We deployed a quantized `Llama-3-8B-Instruct` model and connected it to **OpenEn
 
 The environment then parses that payload using regex and mathematically verifies the findings against the procedural ground truth. If the agent hallucinates a flaw, it gets hit with a negative shaping penalty.
 
-## The RL Pipeline: TRL, GRPO, and Unsloth
+## The RL Pipeline: SFT, GRPO, and Unsloth
 
 <div style="display: flex; gap: 10px;">
   <img src="baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
@@ -32,9 +32,9 @@ The environment then parses that payload using regex and mathematically verifies
   <img src="combined_loss.png" alt="Combined Loss Curve" width="32%">
 </div>
 
-We fine-tuned the model on an Nvidia A10G using Hugging Face’s `GRPOTrainer` and `Unsloth`. But getting the policy gradient to actually converge was a fight.
+We first warm-started the model using Supervised Fine-Tuning (SFT) to teach it the basic JSON reporting schema. Then, we transitioned to an Nvidia A10G using Hugging Face’s `GRPOTrainer` and `Unsloth` to optimize for verifiable accuracy. But getting the RL policy gradient to actually converge was a fight.
 
-In our early runs, the loss was thrashing and rewards were flatlining at zero. The issue wasn't the model; it was our reward design. Our sandbox was too unforgiving. If the model missed a single comma in the JSON, we were hitting it with a heavy `-0.5` penalty. The model quickly learned that "trying and failing" was mathematically worse than just generating empty text, leading to total policy collapse.
+In our early runs, the RL loss was thrashing and rewards were flatlining at zero. The issue wasn't the model; it was our reward design. Our sandbox was too unforgiving. If the model missed a single comma in the JSON, we were hitting it with a heavy `-0.5` penalty. The model quickly learned that "trying and failing" was mathematically worse than just generating empty text, leading to total policy collapse.
 
 **The Fix:** We redesigned the Markov Decision Process (MDP) to prioritize outcomes over process constraints:
 1. We set the reward floor to exactly `0.0`. No heavy negative penalties for formatting.

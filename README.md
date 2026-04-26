@@ -143,6 +143,48 @@ Instead of doing isolated checks, the agent must simultaneously:
 4. `flag_concern` → Raises all structured flags (Task 1-4 flaws) based on the code output and text.
 5. `submit_fda_verdict` → Submits the final `REJECT` decision.
 
+**Real Agent Trace Example (from Task 5):**
+
+![Task 5 Sandbox Execution](task5_sandbox.png)
+
+```python
+import csv
+import os
+
+# Set the path to the dataset
+DATASET_PATH = '/tmp/rig_task2_em30i6ji/task2_readmission.csv'
+
+# Function to read the dataset using csv module
+def read_dataset():
+    with open(DATASET_PATH, 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return data
+
+# Verify the raw patient dataset
+def verify_dataset(data):
+    # Check for missing values
+    missing_values = [row for row in data if any(row[col] == '')]
+    if missing_values:
+        print(f"Warning: Missing values found in {len(missing_values)} rows")
+
+    # Calculate basic statistics
+    row_count = len(data)
+    group_sizes = [len([row for row in data if row['group'] == group]) for group in ['treatment', 'control']]
+    print(f"Group sizes: {group_sizes}")
+
+    # Print findings
+    print(f"Raw dataset verified with {row_count} rows")
+
+# Execute the code
+data = read_dataset()
+verify_dataset(data)
+```
+
+**FINAL VERDICT: REJECT**
+
+> "Based on the analysis of the text and data, I found critical issues: (1) **Class imbalance** in patient groups, (2) **Missing values** in the dataset, (3) **Unblinded assessment** by the PI introducing detection bias, (4) **Multiple comparisons** without correction, and (5) **Citation fabrication** regarding teratogenic effects."
+
 ---
 
 ## 🧪 Testing & Deterministic Verification

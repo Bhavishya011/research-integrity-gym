@@ -56,6 +56,50 @@ The agent must:
 
 To keep execution reliable under constrained memory, Task 5 now includes a **CSV-safe fallback execution path** if generated code is invalid or too memory-heavy. This preserves deterministic audit flow instead of failing the episode on runtime fragility.
 
+### The Agent in Action: Task 5 Sandbox Trace
+
+![PeerGuard Task 5 Execution](../task5_sandbox.png)
+
+Below is the actual code generated and executed by PeerGuard during an NDA audit:
+
+```python
+import csv
+import os
+
+# Set the path to the dataset
+DATASET_PATH = '/tmp/rig_task2_em30i6ji/task2_readmission.csv'
+
+# Function to read the dataset using csv module
+def read_dataset():
+    with open(DATASET_PATH, 'r') as f:
+        reader = csv.DictReader(f)
+        data = [row for row in reader]
+    return data
+
+# Verify the raw patient dataset
+def verify_dataset(data):
+    # Check for missing values
+    missing_values = [row for row in data if any(row[col] == '')]
+    if missing_values:
+        print(f"Warning: Missing values found in {len(missing_values)} rows")
+
+    # Calculate basic statistics
+    row_count = len(data)
+    group_sizes = [len([row for row in data if row['group'] == group]) for group in ['treatment', 'control']]
+    print(f"Group sizes: {group_sizes}")
+
+    # Print findings
+    print(f"Raw dataset verified with {row_count} rows")
+
+# Execute the code
+data = read_dataset()
+verify_dataset(data)
+```
+
+**Verdict:** `REJECT`
+
+> "Critical issues identified: Class imbalance in treatment groups, missing patient values in the dataset, detection bias from unblinded assessors, and direct evidence of citation fabrication."
+
 ## Why this matters
 
 This project is a practical argument for **RL with verifiable rewards** in regulated domains:

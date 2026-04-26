@@ -104,13 +104,18 @@ This forces the agent to learn *precision* rather than just outputting generic c
 
 ## 🎭 The Demo Centrepiece: Task 5 (FDA NDA Review)
 
-Task 5 is the capstone environment. It stitches together methodology, safety data, efficacy claims, and citations into a single massive NDA submission. 
+Task 5 is our capstone environment. **It natively encompasses Tasks 1, 2, 3, and 4 into a single massive, end-to-end review pipeline.** 
+
+Instead of doing isolated checks, the agent must simultaneously:
+*   **Task 1 (Methodology Audit):** Read the text to detect methodology flaws (e.g., unblinded investigators).
+*   **Task 4 (Citation Integrity):** Cross-reference text claims to detect fabricated sources.
+*   **Tasks 2 & 3 (Data Verification):** Write and execute Python code in the Sandbox to catch mathematical anomalies like **class imbalances** and **silently dropped patients**.
 
 **The Agent Trace:**
 1. `read_section` → Parses all 4 sections of the NDA.
 2. `read_dataset` → Locates the raw patient CSV.
-3. `execute_code` → Runs a pandas script in the secure sandbox to discover class imbalances.
-4. `flag_concern` → Raises structured flags based on the code output and text.
+3. `execute_code` → Runs a Python script in the secure sandbox to discover statistical imbalances.
+4. `flag_concern` → Raises all structured flags (Task 1-4 flaws) based on the code output and text.
 5. `submit_fda_verdict` → Submits the final `REJECT` decision.
 
 ---

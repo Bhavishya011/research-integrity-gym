@@ -47,7 +47,7 @@ In our early runs, the loss was thrashing and rewards were flatlining at zero. T
 
 Passing the methodology audit (Task 1) was great, but we wanted to see if the environment could handle complex, long-horizon data verification.
 
-To test this, we built **Task 5 (NDA Data Review)**. This task is entirely different. Instead of just reading text protocols, the agent is handed raw patient CSV files.
+To test this, we built **Task 5 (FDA NDA Review)**. This task is our Capstone challenge. It natively combines all previous environment tasks (Methodology Audit, Data Replication, Patient Exclusions, and Citation Checking) into a single, massive end-to-end review pipeline. The agent must read 4 distinct sections of a synthetic NDA and simultaneously execute Python to analyze a raw patient CSV.
 
 When we fed the baseline Llama-3 model this task, it failed. It read the text summaries, ignored the dataset, and blindly approved a toxic drug.
 

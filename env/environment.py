@@ -63,7 +63,7 @@ def _load_task_registry() -> None:
 # ---------------------------------------------------------------------------
 
 _SANDBOX_TIMEOUT_SECS  = 5
-_SANDBOX_MEMORY_MB     = 128
+_SANDBOX_MEMORY_MB     = 384
 _SANDBOX_MAX_OUTPUT    = 4_000   # chars — truncate stdout beyond this
 
 # Dangerous imports blocked in the sandbox wrapper
@@ -76,10 +76,34 @@ _BLOCKED_IMPORTS = [
 
 _SANDBOX_PRELUDE_UNIX = textwrap.dedent("""
 import builtins as _b
+_real_import = _b.__import__
+_allowed_roots = {{
+    "math", "statistics", "collections", "itertools", "functools",
+    "csv", "json", "io", "re", "numpy", "pandas", "sklearn", "scipy"
+}}
+_blocked_roots = {blocked_imports}
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    root = name.split(".", 1)[0]
+    if root in _blocked_roots or root not in _allowed_roots:
+        raise ImportError(f"Import '{{name}}' is not allowed in sandbox")
+    return _real_import(name, globals, locals, fromlist, level)
+
+def _safe_open(path, mode="r", *args, **kwargs):
+    dataset_path = str(globals().get("DATASET_PATH", ""))
+    path_str = str(path)
+    if any(flag in mode for flag in ("w", "a", "+", "x")):
+        raise PermissionError("sandbox open() is read-only")
+    if dataset_path and path_str == dataset_path:
+        return _b.open(path, mode, *args, **kwargs)
+    raise PermissionError("sandbox open() is only allowed for DATASET_PATH")
+
 _safe_builtins = {{k: getattr(_b, k) for k in dir(_b)
-                  if k not in ('open','__import__','compile','eval','exec',
+                  if k not in ('compile','eval','exec',
                                'breakpoint','input','memoryview','vars',
                                '__loader__','__spec__')}}
+_safe_builtins["__import__"] = _safe_import
+_safe_builtins["open"] = _safe_open
 __builtins__ = _safe_builtins
 
 import signal as _signal
@@ -87,36 +111,42 @@ _signal.alarm({timeout})
 
 import resource as _res
 _res.setrlimit(_res.RLIMIT_AS, ({mem}, {mem}))
-
-# Allowed data-science imports only
-import math, statistics, collections, itertools, functools
-import csv, json, io, re
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, f1_score
-from sklearn.model_selection import train_test_split
 """).strip()
 
 _SANDBOX_PRELUDE_WINDOWS = textwrap.dedent("""
 import builtins as _b
+_real_import = _b.__import__
+_allowed_roots = {{
+    "math", "statistics", "collections", "itertools", "functools",
+    "csv", "json", "io", "re", "numpy", "pandas", "sklearn", "scipy"
+}}
+_blocked_roots = {blocked_imports}
+
+def _safe_import(name, globals=None, locals=None, fromlist=(), level=0):
+    root = name.split(".", 1)[0]
+    if root in _blocked_roots or root not in _allowed_roots:
+        raise ImportError(f"Import '{{name}}' is not allowed in sandbox")
+    return _real_import(name, globals, locals, fromlist, level)
+
+def _safe_open(path, mode="r", *args, **kwargs):
+    dataset_path = str(globals().get("DATASET_PATH", ""))
+    path_str = str(path)
+    if any(flag in mode for flag in ("w", "a", "+", "x")):
+        raise PermissionError("sandbox open() is read-only")
+    if dataset_path and path_str == dataset_path:
+        return _b.open(path, mode, *args, **kwargs)
+    raise PermissionError("sandbox open() is only allowed for DATASET_PATH")
+
 _safe_builtins = {{k: getattr(_b, k) for k in dir(_b)
-                  if k not in ('open','__import__','compile','eval','exec',
+                  if k not in ('compile','eval','exec',
                                'breakpoint','input','memoryview','vars',
                                '__loader__','__spec__')}}
+_safe_builtins["__import__"] = _safe_import
+_safe_builtins["open"] = _safe_open
 __builtins__ = _safe_builtins
 
 # Windows: signal.alarm and resource.setrlimit not available
 # Timeout is handled by subprocess timeout parameter
-
-# Allowed data-science imports only
-import math, statistics, collections, itertools, functools
-import csv, json, io, re
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, f1_score
-from sklearn.model_selection import train_test_split
 """).strip()
 
 _SANDBOX_PRELUDE = _SANDBOX_PRELUDE_UNIX if HAS_RESOURCE else _SANDBOX_PRELUDE_WINDOWS
@@ -574,14 +604,15 @@ def _run_sandboxed(code: str, dataset_path: str = "") -> dict:
       1. subprocess — agent code can't affect parent process memory
       2. signal.alarm(5) inside child — kills the child from inside
       3. subprocess.run(timeout=6) — kills the child from outside if alarm fails
-      4. __builtins__ replacement — blocks open(), __import__, eval, exec
+      4. __builtins__ replacement — restricted open()/imports/eval/exec
       5. Memory limit via resource.setrlimit
     """
     mem_bytes = _SANDBOX_MEMORY_MB * 1024 * 1024
 
     prelude = _SANDBOX_PRELUDE.format(
-        timeout = _SANDBOX_TIMEOUT_SECS,
-        mem     = mem_bytes,
+        timeout         = _SANDBOX_TIMEOUT_SECS,
+        mem             = mem_bytes,
+        blocked_imports = set(_BLOCKED_IMPORTS),
     )
 
     # Inject dataset path as a constant the agent code can reference

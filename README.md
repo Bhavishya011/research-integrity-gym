@@ -50,7 +50,7 @@ Our deterministic RLVR reward shaping strategies and verifiable environment desi
 
 | Criterion | What We Built |
 |-----------|---------------|
-| **Environment Innovation** | **Sandboxed Python Verification**: The agent must write and execute pandas code against raw CSVs in a secure Docker sandbox to prove its claims. **Deterministic Graders**: No LLM-as-a-judge is used. Rewards are calculated via strict logic trees and regex keyword matching. |
+| **Environment Innovation** | **Sandboxed Python Verification**: The agent must write and execute Python against raw CSVs in a secure Docker sandbox (with a csv-safe fallback path under strict memory constraints) to prove its claims. **Deterministic Graders**: No LLM-as-a-judge is used. Rewards are calculated via strict logic trees and regex keyword matching. |
 | **Storytelling & Presentation** | Check out our [Mini-Blog](docs/HFBlogPost.md) for the full narrative. The live HF Space UI includes a "Session Audit History" table and a "Sandbox Terminal" tab that exposes the agent's exact thought process and code execution in real-time. |
 | **Showing Improvement** | See the Training Plots below. The baseline model scores `~0.40` on Task 1, while the GRPO-trained model hits a perfect `0.9999`. |
 | **Reward & Training Pipeline** | Our provided Colab notebook demonstrates a full TRL GRPOTrainer loop on Llama-3-8B-Instruct with formatting shaping rewards and deterministic environment rewards. |
@@ -142,6 +142,23 @@ Instead of doing isolated checks, the agent must simultaneously:
 3. `execute_code` → Runs a Python script in the secure sandbox to discover statistical imbalances.
 4. `flag_concern` → Raises all structured flags (Task 1-4 flaws) based on the code output and text.
 5. `submit_fda_verdict` → Submits the final `REJECT` decision.
+
+---
+
+## 🧪 Testing & Deterministic Verification
+
+To ensure PeerGuard’s rewards are **100% un-gameable**, we implemented a comprehensive suite of unit tests using `pytest`. This guarantees that our deterministic graders behave correctly across all edge cases.
+
+**What we verify:**
+*   **Grader Accuracy**: We test that perfect agent submissions receive a `0.9999` score, while empty or incorrect ones receive a `0.0001` floor.
+*   **Partial Credit & Penalties**: Verification of the logic for partial credit (e.g., correct flaw but wrong location) and penalties for false-positive hallucinations.
+*   **Robust Synonym Matching**: Ensuring the graders recognize various natural language phrasings for clinical flaws (e.g., "inappropriate method" matching "wrong statistical test").
+*   **Investigative Depth**: In Task 5, we test that the grader rewards agents who actually execute code and raise multiple flags, rather than just guessing a final verdict.
+
+**Run the verification suite:**
+```bash
+pytest tests/test_graders.py -v
+```
 
 ---
 

@@ -31,6 +31,7 @@ Current LLMs are incredible at *generation* but fail catastrophically at rigorou
 Our deterministic RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning for verifiable reasoning.
 
 *   **Reward Ideas:** Inspired by [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
+*   **Sycophancy Analysis:** Based on [arXiv:2601.16529](https://arxiv.org/abs/2601.16529).
 
 ---
 
@@ -65,6 +66,9 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 *   **Baseline (Untrained Llama-3-8B):** `~0.4000` (Hallucinates flaws, fails JSON formatting).
 *   **PeerGuard (SFT Warmstart + GRPO-Trained LoRA):** **`0.9999`** (+150% improvement). The agent was first warm-started via Supervised Fine-Tuning (SFT) to learn the JSON schema, and then optimized via GRPO to perfectly identify flaws.
 
+> [!IMPORTANT]
+> **The Vioxx Lesson:** In 2004, the FDA's Dr. David Graham testified that the approval of Vioxx was an "unprecedented failure" because cardiovascular risks were glossed over. Up to **139,000 heart attacks** occurred before the drug was pulled. PeerGuard’s Task 1 is designed specifically to catch these subtle text-based reporting failures.
+
 **Baseline vs Trained Performance & Reward Curves:**
 <div style="display: flex; gap: 10px;">
   <img src="docs/baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
@@ -78,6 +82,9 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 A massive long-horizon capstone task. The agent must read 4 NDA sections, execute data verification code, flag concerns, and submit a final verdict.
 *   **Baseline:** `0.2000` (Fails to execute code, blindly approves the drug).
 *   **PeerGuard Pipeline:** **`0.9500+`** (Successfully generates and executes verification scripts, catches all sub-task flaws, and accurately submits the REJECT verdict).
+
+> [!CAUTION]
+> **The Surgisphere Scandal:** In 2020, *The Lancet* and *NEJM* retracted massive COVID-19 studies because the underlying data was fabricated. The papers looked perfect on the surface—only independent mathematical verification of the raw CSV numbers caught the fraud. PeerGuard's Task 5 replicates this by forcing the agent to execute code, rather than just reading the summary.
 
 ---
 
@@ -105,7 +112,7 @@ A massive long-horizon capstone task. The agent must read 4 NDA sections, execut
 
 ## 🧠 Escaping the "LLM-as-a-Judge" Trap
 
-LLMs are notoriously bad at evaluating their own outputs. To perform GRPO training, you need an un-gameable reward signal. 
+LLMs are notoriously bad at evaluating their own outputs. To perform GRPO training, you need an un-gameable reward signal. Recent research on **LLM Sycophancy** ([arXiv:2601.16529](https://arxiv.org/abs/2601.16529)) shows that models used as judges often provide positive feedback simply because the input is politely formatted, even if it is factually wrong. 
 
 PeerGuard achieves this by injecting **Specific Ground Truth Flags** into procedurally generated text, and then grading the agent using **Regex and Logic Trees**.
 

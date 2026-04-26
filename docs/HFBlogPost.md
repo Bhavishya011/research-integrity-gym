@@ -6,7 +6,9 @@
 
 When building AI agents to handle high-stakes regulatory tasks—like auditing clinical trials or reviewing New Drug Applications (NDAs)—the industry relies heavily on "LLM-as-a-Judge" evaluation. 
 
-The problem? LLMs are easily manipulated soft graders. They hallucinate partial credit, struggle with strict biostatistics, and can be fooled by polite, confident formatting. In a software demo, that’s an edge case. At the FDA, a hallucinated drug approval costs lives. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** and leading to dangerous, wide-scale drug approvals (Source: *RetractionWatch / BMJ*). 
+The problem? LLMs are easily manipulated soft graders. They hallucinate partial credit, struggle with strict biostatistics, and can be fooled by polite, confident formatting. In a software demo, that’s an edge case. At the FDA, a hallucinated drug approval costs lives. 
+
+Take the **Vioxx Disaster** of 2004. Up to 60,000 Americans died because cardiovascular risk data was glossed over in reporting. The paper looked valid to human eyes, but the underlying anomalies were fatal. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** (Source: *RetractionWatch / BMJ*). 
 
 For the Meta PyTorch × Scaler Hackathon, our team decided to kill the soft-grading system. We built **PeerGuard**, an autonomous Review Board agent trained entirely inside a deterministic OpenEnv sandbox. If the math is wrong, the agent gets a zero. No partial credit. No vibes. Just Reinforcement Learning with Verifiable Rewards (RLVR).
 
@@ -52,14 +54,14 @@ Passing the methodology audit (Task 1) was great, but we wanted to see if the en
 
 To test this, we built **Task 5 (FDA NDA Review)**. This task is our Capstone challenge. It natively combines all previous environment tasks (Methodology Audit, Data Replication, Patient Exclusions, and Citation Checking) into a single, massive end-to-end review pipeline. The agent must read 4 distinct sections of a synthetic NDA and simultaneously execute Python to analyze a raw patient CSV.
 
-When we fed the baseline Llama-3 model this task, it failed. It read the text summaries, ignored the dataset, and blindly approved a toxic drug.
+When we fed the baseline Llama-3 model this task, it failed. It read the text summaries, ignored the dataset, and blindly approved a toxic drug. This is exactly what happened during the **COVID-19 Surgisphere Scandal**, where *The Lancet* and *NEJM* published studies based on fabricated data that "looked" perfect in text but was mathematically impossible in reality.
 
-When we deployed the full PeerGuard pipeline, the agent autonomously abandoned static text summaries. It wrote an executable Python script using Pandas, executed it within the secure OpenEnv sandbox to mathematically check the CSV for adverse event class imbalances, and extracted its findings into a final FDA Verdict JSON. The sandbox executed the script, found the toxic anomalies, and correctly **rejected** the drug.
+When we deployed the full PeerGuard pipeline, the agent autonomously abandoned static text summaries. It wrote an executable Python script, executed it within the secure OpenEnv sandbox to mathematically check the CSV for adverse event class imbalances, and extracted its findings into a final FDA Verdict JSON. The sandbox executed the script, found the toxic anomalies, and correctly **rejected** the drug.
 
 The rigorous reasoning we instilled during the text audits successfully transferred to a pure code-generation environment.
 
 ## What's Next
 
-Building applied AI systems requires moving beyond simple prompt engineering and into rigorous, deterministic optimization. As we scale agentic workflows in healthcare and regulation, deterministic sandboxes like OpenEnv combined with GRPO will become the standard. 
+We cannot rely on LLMs to grade our homework when the stakes are this high. As documented in recent research on **LLM Sycophancy** ([arXiv:2601.16529](https://arxiv.org/abs/2601.16529)), models used as judges often provide positive feedback simply because the input is politely formatted, even if it is factually wrong. 
 
-We cannot rely on LLMs to grade our homework when the stakes are this high.
+As we scale agentic workflows in healthcare and regulation, deterministic sandboxes like OpenEnv combined with GRPO will become the standard. 

@@ -60,8 +60,8 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 **Baseline vs Trained Performance & Reward Curves:**
 <div style="display: flex; gap: 10px;">
   <img src="docs/baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
-  <img src="docs/grpo_reward_curve.png" alt="GRPO Reward Curve" width="32%">
-  <img src="docs/grpo_loss_curve.png" alt="SFT Loss Curve" width="32%">
+  <img src="docs/combined_reward.png" alt="Combined Reward Curve" width="32%">
+  <img src="docs/combined_loss.png" alt="Combined Loss Curve" width="32%">
 </div>
 
 *(Note: The model learned to maximize the deterministic reward by avoiding false-positive hallucination penalties.)*

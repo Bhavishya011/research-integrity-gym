@@ -25,8 +25,9 @@ The environment then parses that payload using regex and mathematically verifies
 ## The RL Pipeline: TRL, GRPO, and Unsloth
 
 <div style="display: flex; gap: 10px;">
-  <img src="grpo_reward_curve.png" alt="GRPO Reward Curve" width="49%">
-  <img src="grpo_loss_curve.png" alt="SFT Loss Curve" width="49%">
+  <img src="baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
+  <img src="grpo_reward_curve.png" alt="GRPO Reward Curve" width="32%">
+  <img src="grpo_loss_curve.png" alt="SFT Loss Curve" width="32%">
 </div>
 
 We fine-tuned the model on an Nvidia A10G using Hugging Face’s `GRPOTrainer` and `Unsloth`. But getting the policy gradient to actually converge was a fight.

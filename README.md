@@ -57,10 +57,11 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 *   **Baseline (Untrained Llama-3-8B):** `~0.4000` (Hallucinates flaws, fails JSON formatting).
 *   **PeerGuard (GRPO-Trained LoRA):** **`0.9999`** (+150% improvement). The agent perfectly identifies flaws and strictly adheres to the schema.
 
-**GRPO Reward Curve & Loss Curve:**
+**Baseline vs Trained Performance & Reward Curves:**
 <div style="display: flex; gap: 10px;">
-  <img src="docs/grpo_reward_curve.png" alt="GRPO Reward Curve" width="49%">
-  <img src="docs/grpo_loss_curve.png" alt="SFT Loss Curve" width="49%">
+  <img src="docs/baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
+  <img src="docs/grpo_reward_curve.png" alt="GRPO Reward Curve" width="32%">
+  <img src="docs/grpo_loss_curve.png" alt="SFT Loss Curve" width="32%">
 </div>
 
 *(Note: The model learned to maximize the deterministic reward by avoiding false-positive hallucination penalties.)*

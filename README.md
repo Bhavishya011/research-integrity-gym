@@ -220,6 +220,7 @@ pytest tests/test_graders.py -v
 *   **Model**: `unsloth/Llama-3-8b-Instruct-bnb-4bit`
 *   **Algorithm**: `TRL SFTTrainer` (Warmstart) + `TRL GRPOTrainer` (RLVR)
 *   **Hardware**: A10G GPU (via Unsloth optimization)
+*   **Weights**: The final trained LoRA adapter weights are included in this repository under [peerguard_lora_final/](peerguard_lora_final/).
 
 You can reproduce the training via the provided Colab notebook linked at the top of this README, or run the local version:
 

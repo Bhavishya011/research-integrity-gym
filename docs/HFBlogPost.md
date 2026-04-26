@@ -118,6 +118,8 @@ This project is a practical argument for **RL with verifiable rewards** in regul
 
 Healthcare and regulatory AI needs the second path.
 
+The PeerGuard model weights are available as a LoRA adapter in the [peerguard_lora_final/](https://github.com/Bhavishya011/research-integrity-gym/tree/main/peerguard_lora_final) directory of our repository.
+
 ## References
 
 - Reward design inspiration: [arXiv:2601.19100](https://arxiv.org/abs/2601.19100)  

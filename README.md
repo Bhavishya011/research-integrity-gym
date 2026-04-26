@@ -16,25 +16,6 @@ An OpenEnv-compliant RL training environment where AI agents act as **FDA Lead R
 
 ---
 
-## 🛑 The Verification Gap
-
-The scientific replication crisis affects an estimated 50–70% of published research. In clinical trials, a methodological flaw or undisclosed data exclusion isn't just a statistical error—it costs lives. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** and leading to dangerous, wide-scale drug approvals (Source: *RetractionWatch / BMJ*). 
-
-Current LLMs are incredible at *generation* but fail catastrophically at rigorous, multi-step *verification*. When presented with a complex clinical protocol and raw CSV data, baseline models hallucinate, struggle to follow strict reporting schemas, and fail to independently verify biostatistical claims.
-
-**PeerGuard is the direct fix.** It provides a Reinforcement Learning with Verifiable Rewards (RLVR) environment to transition LLMs from "helpful chat assistants" into "reliable, autonomous FDA regulators" that trust nothing, execute code to verify everything, and output deterministic findings.
-
----
-
-## 📚 Citations & Inspiration
-
-Our deterministic RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning for verifiable reasoning.
-
-*   **Reward Ideas:** Inspired by [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
-*   **Sycophancy Analysis:** Based on [arXiv:2601.16529](https://arxiv.org/abs/2601.16529).
-
----
-
 ## 📦 Submission Artifacts
 
 | Artifact | Link |
@@ -43,6 +24,16 @@ Our deterministic RLVR reward shaping strategies and verifiable environment desi
 | **Mini-Blog / Writeup** | [docs/HFBlogPost.md](docs/HFBlogPost.md) — *Read the full story of our RL training!* |
 | **Training Notebook (Colab)** | [Open in Google Colab](https://colab.research.google.com/drive/1Zof-_DwRgQkDahJZ5N8pVQdfInSBrYEW?usp=sharing) |
 | **Full GitHub Repo** | [Bhavishya011/research-integrity-gym](https://github.com/Bhavishya011/research-integrity-gym) |
+
+---
+
+## 🛑 The Verification Gap
+
+The scientific replication crisis affects an estimated 50–70% of published research. In clinical trials, a methodological flaw or undisclosed data exclusion isn't just a statistical error—it costs lives. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** and leading to dangerous, wide-scale drug approvals (Source: *RetractionWatch / BMJ*). 
+
+Current LLMs are incredible at *generation* but fail catastrophically at rigorous, multi-step *verification*. When presented with a complex clinical protocol and raw CSV data, baseline models hallucinate, struggle to follow strict reporting schemas, and fail to independently verify biostatistical claims.
+
+**PeerGuard is the direct fix.** It provides a Reinforcement Learning with Verifiable Rewards (RLVR) environment to transition LLMs from "helpful chat assistants" into "reliable, autonomous FDA regulators" that trust nothing, execute code to verify everything, and output deterministic findings.
 
 ---
 
@@ -94,47 +85,39 @@ To ensure full reproducibility and proof of training, we have included our train
   <img src="docs/grpo_logs.png" alt="GRPO Training Logs" width="48%">
 </div>
 
-> [!CAUTION]
-> **The Surgisphere Scandal:** In 2020, *The Lancet* and *NEJM* retracted massive COVID-19 studies because the underlying data was fabricated. The papers looked perfect on the surface—only independent mathematical verification of the raw CSV numbers caught the fraud. PeerGuard's Task 5 replicates this by forcing the agent to execute code, rather than just reading the summary.
-
 ---
 
-## ⏱️ Quick Start for Reviewers (3 minutes)
+## 🛠️ Training Pipeline & Reproduction
 
-![PeerGuard Gradio UI](gradio_ui.png)
+*   **Model**: `unsloth/Llama-3-8b-Instruct-bnb-4bit`
+*   **Algorithm**: `TRL SFTTrainer` (Warmstart) + `TRL GRPOTrainer` (RLVR)
+*   **Hardware**: A10G GPU (via Unsloth optimization)
+*   **Weights**: The final trained LoRA adapter weights are included in this repository under [peerguard_lora_final/](peerguard_lora_final/).
 
-1. Open the live UI: [https://huggingface.co/spaces/Nexus18/research-integrity-gym](https://huggingface.co/spaces/Nexus18/research-integrity-gym)
-2. Select **"Task 5 — NDA Data Review"** from the Control Panel.
-3. Click **"🚀 Deploy FDA Auditor"**.
-4. Watch the agent read the protocol, execute Python analysis in the **Sandbox Terminal** tab, and generate a deterministic **Grader Report**.
-5. Check the **Session Audit History** table at the bottom to see the run logged!
+You can reproduce the training via the provided Colab notebook linked at the top of this README, or run the local version:
 
----
-
-## 💡 Core Innovations
-
-![PeerGuard Architecture Flowchart](architecture.png)
-
-1. **Sandboxed Code Execution in the Loop**: The agent cannot solve Task 5 just by reading text. It *must* write and execute Python code against a hidden CSV dataset to discover class imbalances and missing patients.
-2. **Deterministic RLVR Grading**: We explicitly reject "LLM-as-a-judge" grading. Every point of reward is calculated deterministically by matching the agent's actions and generated flags against the procedurally generated ground truth.
-3. **Procedural Clinical Trials**: The environment generates unique clinical trial texts and corresponding patient CSVs on the fly based on a seed. The agent cannot memorize answers.
-
----
-
-## 🧠 Escaping the "LLM-as-a-Judge" Trap
-
-LLMs are notoriously bad at evaluating their own outputs. To perform GRPO training, you need an un-gameable reward signal. Recent research on **LLM Sycophancy** ([arXiv:2601.16529](https://arxiv.org/abs/2601.16529)) shows that models used as judges often provide positive feedback simply because the input is politely formatted, even if it is factually wrong. 
-
-PeerGuard achieves this by injecting **Specific Ground Truth Flags** into procedurally generated text, and then grading the agent using **Regex and Logic Trees**.
-
-```python
-# Grader logic ensures the agent actually found the flaw, not just guessed.
-if any(kw in agent_output for kw in ["unblinded", "blinding", "detection bias"]):
-    score += 0.20
-else:
-    score -= 0.05 # Penalty for hallucination
+```bash
+git clone https://github.com/Bhavishya011/research-integrity-gym
+cd research-integrity-gym
+pip install -r train/requirements.txt
 ```
-This forces the agent to learn *precision* rather than just outputting generic complaints.
+
+---
+
+## 🧪 Testing & Deterministic Verification
+
+To ensure PeerGuard’s rewards are **100% un-gameable**, we implemented a comprehensive suite of unit tests using `pytest`. This guarantees that our deterministic graders behave correctly across all edge cases.
+
+**What we verify:**
+*   **Grader Accuracy**: We test that perfect agent submissions receive a `0.9999` score, while empty or incorrect ones receive a `0.0001` floor.
+*   **Partial Credit & Penalties**: Verification of the logic for partial credit (e.g., correct flaw but wrong location) and penalties for false-positive hallucinations.
+*   **Robust Synonym Matching**: Ensuring the graders recognize various natural language phrasings for clinical flaws (e.g., "inappropriate method" matching "wrong statistical test").
+*   **Investigative Depth**: In Task 5, we test that the grader rewards agents who actually execute code and raise multiple flags, rather than just guessing a final verdict.
+
+**Run the verification suite:**
+```bash
+pytest tests/test_graders.py -v
+```
 
 ---
 
@@ -147,14 +130,14 @@ Instead of doing isolated checks, the agent must simultaneously:
 *   **Task 4 (Citation Integrity):** Cross-reference text claims to detect fabricated sources.
 *   **Tasks 2 & 3 (Data Verification):** Write and execute Python code in the Sandbox to catch mathematical anomalies like **class imbalances** and **silently dropped patients**.
 
-**The Agent Trace:**
+**The Agent Trace (Operational Flow):**
 1. `read_section` → Parses all 4 sections of the NDA.
 2. `read_dataset` → Locates the raw patient CSV.
 3. `execute_code` → Runs a Python script in the secure sandbox to discover statistical imbalances.
 4. `flag_concern` → Raises all structured flags (Task 1-4 flaws) based on the code output and text.
 5. `submit_fda_verdict` → Submits the final `REJECT` decision.
 
-**Real Agent Trace Example (from Task 5):**
+**Real Agent Trace Example (Live Run):**
 
 ![Task 5 Sandbox Execution](task5_sandbox.png)
 
@@ -198,37 +181,54 @@ verify_dataset(data)
 
 ---
 
-## 🧪 Testing & Deterministic Verification
+## 💡 Core Innovations
 
-To ensure PeerGuard’s rewards are **100% un-gameable**, we implemented a comprehensive suite of unit tests using `pytest`. This guarantees that our deterministic graders behave correctly across all edge cases.
+![PeerGuard Architecture Flowchart](architecture.png)
 
-**What we verify:**
-*   **Grader Accuracy**: We test that perfect agent submissions receive a `0.9999` score, while empty or incorrect ones receive a `0.0001` floor.
-*   **Partial Credit & Penalties**: Verification of the logic for partial credit (e.g., correct flaw but wrong location) and penalties for false-positive hallucinations.
-*   **Robust Synonym Matching**: Ensuring the graders recognize various natural language phrasings for clinical flaws (e.g., "inappropriate method" matching "wrong statistical test").
-*   **Investigative Depth**: In Task 5, we test that the grader rewards agents who actually execute code and raise multiple flags, rather than just guessing a final verdict.
-
-**Run the verification suite:**
-```bash
-pytest tests/test_graders.py -v
-```
+1. **Sandboxed Code Execution in the Loop**: The agent cannot solve Task 5 just by reading text. It *must* write and execute Python code against a hidden CSV dataset to discover class imbalances and missing patients.
+2. **Deterministic RLVR Grading**: We explicitly reject "LLM-as-a-judge" grading. Every point of reward is calculated deterministically by matching the agent's actions and generated flags against the procedurally generated ground truth.
+3. **Procedural Clinical Trials**: The environment generates unique clinical trial texts and corresponding patient CSVs on the fly based on a seed. The agent cannot memorize answers.
 
 ---
 
-## 🛠️ Training Pipeline & Reproduction
+## 🧠 Escaping the "LLM-as-a-Judge" Trap
 
-*   **Model**: `unsloth/Llama-3-8b-Instruct-bnb-4bit`
-*   **Algorithm**: `TRL SFTTrainer` (Warmstart) + `TRL GRPOTrainer` (RLVR)
-*   **Hardware**: A10G GPU (via Unsloth optimization)
-*   **Weights**: The final trained LoRA adapter weights are included in this repository under [peerguard_lora_final/](peerguard_lora_final/).
+LLMs are notoriously bad at evaluating their own outputs. To perform GRPO training, you need an un-gameable reward signal. Recent research on **LLM Sycophancy** ([arXiv:2601.16529](https://arxiv.org/abs/2601.16529)) shows that models used as judges often provide positive feedback simply because the input is politely formatted, even if it is factually wrong. 
 
-You can reproduce the training via the provided Colab notebook linked at the top of this README, or run the local version:
+PeerGuard achieves this by injecting **Specific Ground Truth Flags** into procedurally generated text, and then grading the agent using **Regex and Logic Trees**.
 
-```bash
-git clone https://github.com/Bhavishya011/research-integrity-gym
-cd research-integrity-gym
-pip install -r train/requirements.txt
+```python
+# Grader logic ensures the agent actually found the flaw, not just guessed.
+if any(kw in agent_output for kw in ["unblinded", "blinding", "detection bias"]):
+    score += 0.20
+else:
+    score -= 0.05 # Penalty for hallucination
 ```
+This forces the agent to learn *precision* rather than just outputting generic complaints.
+
+---
+
+## ⏱️ Quick Start for Reviewers (3 minutes)
+
+![PeerGuard Gradio UI](gradio_ui.png)
+
+1. Open the live UI: [https://huggingface.co/spaces/Nexus18/research-integrity-gym](https://huggingface.co/spaces/Nexus18/research-integrity-gym)
+2. Select **"Task 5 — NDA Data Review"** from the Control Panel.
+3. Click **"🚀 Deploy FDA Auditor"**.
+4. Watch the agent read the protocol, execute Python analysis in the **Sandbox Terminal** tab, and generate a deterministic **Grader Report**.
+5. Check the **Session Audit History** table at the bottom to see the run logged!
+
+---
+
+## 📚 Citations & Inspiration
+
+Our deterministic RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning for verifiable reasoning.
+
+*   **Reward Ideas:** Inspired by [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
+*   **Sycophancy Analysis:** Based on [arXiv:2601.16529](https://arxiv.org/abs/2601.16529).
+
+> [!CAUTION]
+> **The Surgisphere Scandal:** In 2020, *The Lancet* and *NEJM* retracted massive COVID-19 studies because the underlying data was fabricated. The papers looked perfect on the surface—only independent mathematical verification of the raw CSV numbers caught the fraud. PeerGuard's Task 5 replicates this by forcing the agent to execute code, rather than just reading the summary.
 
 ---
 

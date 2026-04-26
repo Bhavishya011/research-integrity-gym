@@ -2,42 +2,43 @@
 
 **By Team Nexus18**
 
-## The verification gap in medical AI
+## The Verification Gap in Medical AI
 
-High-stakes review tasks (clinical trial audits, NDA reviews) break when evaluation is soft.  
-If an LLM judge can be persuaded by fluent text, bad science can still score well.
+When building AI agents to handle high-stakes regulatory tasks—like auditing clinical trials or reviewing New Drug Applications (NDAs)—the industry relies heavily on "LLM-as-a-Judge" evaluation. 
 
-That is the core problem we targeted in this hackathon project: build an agent that is rewarded for **verifiable correctness**, not persuasive wording.
+The problem? LLMs are easily manipulated soft graders. They hallucinate partial credit, struggle with strict biostatistics, and can be fooled by polite, confident formatting. In a software demo, that’s an edge case. At the FDA, a hallucinated drug approval costs lives. 
 
-Historical failures make this concrete:
-- Vioxx showed how safety signals can be under-weighted until major harm occurs.
-- The Surgisphere incident showed how polished narrative can hide invalid underlying data.
+Take the **Vioxx Disaster** of 2004. Up to 60,000 Americans died because cardiovascular risk data was glossed over in reporting. The paper looked valid to human eyes, but the underlying anomalies were fatal. Over 10,000 biomedical papers have been retracted in the last decade, but only after potentially affecting **hundreds of thousands of enrolled patients** (Source: *RetractionWatch / BMJ*). 
 
-## What we built
+For the Meta PyTorch × Scaler Hackathon, our team decided to kill the soft-grading system. We built **PeerGuard**, an autonomous Review Board agent trained entirely inside a deterministic OpenEnv sandbox. If the math is wrong, the agent gets a zero. No partial credit. No vibes. Just Reinforcement Learning with Verifiable Rewards (RLVR).
 
-We built **PeerGuard**, an OpenEnv-compatible RL environment where the agent acts as an FDA-style regulator:
-1. Read procedurally generated trial content.
-2. Inspect raw datasets.
-3. Execute sandboxed Python for independent checks.
-4. Raise structured concerns.
-5. Submit a final deterministic verdict.
+Our RLVR reward shaping strategies and verifiable environment design are heavily inspired by recent advancements in Reinforcement Learning, specifically the reward ideas outlined in [arXiv:2601.19100](https://arxiv.org/abs/2601.19100).
+
+---
+
+## The Architecture: Deterministic Sandboxing
 
 ![PeerGuard Architecture Flowchart](../architecture.png)
 
-The key design principle is deterministic grading:
-- no LLM-as-judge in scoring,
-- explicit rule-based graders,
-- ground-truth-backed reward signals.
+Instead of asking an LLM if a clinical trial protocol "looks correct," PeerGuard is forced to execute verifiable actions.
 
-## RL pipeline: from schema compliance to reliable audit behavior
+We deployed a quantized `Llama-3-8B-Instruct` model and connected it to **OpenEnv**, a deterministic execution environment. The agent reads procedurally generated clinical papers, searches for planted flaws (like p-hacking or silently excluded patients), and outputs strict JSON payloads. 
+
+The environment then parses that payload using regex and mathematically verifies the findings against the procedural ground truth. If the agent hallucinates a flaw, it gets hit with a negative shaping penalty.
+
+---
+
+## The RL Pipeline: SFT, GRPO, and Unsloth
+
+<div style="display: flex; gap: 10px;">
+  <img src="baseline_vs_trained.png" alt="Baseline vs Trained Comparison" width="32%">
+  <img src="combined_reward.png" alt="Combined Reward Curve" width="32%">
+  <img src="combined_loss.png" alt="Combined Loss Curve" width="32%">
+</div>
 
 We used a staged training approach:
 1. **SFT warm-start** for output format discipline (valid schema / structured actions).
 2. **GRPO** for reward-driven behavior in a deterministic environment.
-
-![Baseline vs Trained Comparison](baseline_vs_trained.png)
-![Combined Reward Curve](combined_reward.png)
-![Combined Loss Curve](combined_loss.png)
 
 ### Proof of Training: SFT & GRPO Logs
 To ensure full reproducibility, we have included our training logs showing the convergence of the **SFT Warmstart** and the **GRPO policy optimization**.
@@ -49,22 +50,19 @@ To ensure full reproducibility, we have included our training logs showing the c
 
 Before training, the baseline model (tested via **Groq Llama API**) struggled to follow instructions, scoring only **~0.4** on Task 1 and **~0.2** on Task 5. After the RLVR pipeline, PeerGuard achieved near-perfect scores by learning to prioritize deterministic evidence over narrative vibes.
 
-Early runs failed because reward shaping over-penalized formatting misses and caused collapse.  
-We corrected this by using gentler shaping and prioritizing terminal correctness.
+---
 
-## The capstone: Task 5 (NDA review)
-
-Task 5 combines protocol audit, replication, claim verification, and citation checks into one long-horizon episode.
-
-The agent must:
-1. audit 4 sections of an NDA-style submission,
-2. run code against raw CSV data,
-3. flag protocol/statistical/citation issues,
-4. issue `APPROVE`, `REJECT`, or `REVISE`.
+## The Real Test: Zero-Shot Code Generation
 
 ![PeerGuard UI showing Zero-Shot Generalization](../gradio_ui.png)
 
-To keep execution reliable under constrained memory, Task 5 now includes a **CSV-safe fallback execution path** if generated code is invalid or too memory-heavy. This preserves deterministic audit flow instead of failing the episode on runtime fragility.
+Passing the methodology audit (Task 1) was great, but we wanted to see if the environment could handle complex, long-horizon data verification.
+
+To test this, we built **Task 5 (FDA NDA Review)**. This task is our Capstone challenge. It natively combines all previous environment tasks into a single, massive end-to-end review pipeline. The agent must read 4 distinct sections of a synthetic NDA and simultaneously execute Python to analyze a raw patient CSV.
+
+When we fed the baseline Llama-3 model this task, it failed. It read the text summaries, ignored the dataset, and blindly approved a toxic drug. This is exactly what happened during the **COVID-19 Surgisphere Scandal**, where studies were published based on fabricated data that "looked" perfect in text but was mathematically impossible in reality.
+
+When we deployed PeerGuard, the agent autonomously abandoned static text summaries. It wrote an executable Python script, executed it within the secure OpenEnv sandbox, and correctly **rejected** the drug.
 
 ### The Agent in Action: Task 5 Sandbox Trace
 
@@ -108,15 +106,13 @@ verify_dataset(data)
 
 **Verdict:** `REJECT`
 
-> "Critical issues identified: Class imbalance in treatment groups, missing patient values in the dataset, detection bias from unblinded assessors, and direct evidence of citation fabrication."
+---
 
 ## Why this matters
 
-This project is a practical argument for **RL with verifiable rewards** in regulated domains:
-- If scoring is soft, agents optimize style.
-- If scoring is deterministic, agents optimize evidence.
+We cannot rely on LLMs to grade our homework when the stakes are this high. As documented in recent research on **LLM Sycophancy** ([arXiv:2601.16529](https://arxiv.org/abs/2601.16529)), models used as judges often provide positive feedback simply because the input is politely formatted, even if it is factually wrong. 
 
-Healthcare and regulatory AI needs the second path.
+As we scale agentic workflows in healthcare and regulation, deterministic sandboxes like OpenEnv combined with GRPO will become the standard. 
 
 The PeerGuard model weights are available as a LoRA adapter in the [peerguard_lora_final/](https://github.com/Bhavishya011/research-integrity-gym/tree/main/peerguard_lora_final) directory of our repository.
 

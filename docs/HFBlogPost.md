@@ -39,6 +39,16 @@ We used a staged training approach:
 ![Combined Reward Curve](combined_reward.png)
 ![Combined Loss Curve](combined_loss.png)
 
+### Proof of Training: SFT & GRPO Logs
+To ensure full reproducibility, we have included our training logs showing the convergence of the **SFT Warmstart** and the **GRPO policy optimization**.
+
+<div style="display: flex; gap: 10px;">
+  <img src="sft_logs.png" alt="SFT Training Logs" width="48%">
+  <img src="grpo_logs.png" alt="GRPO Training Logs" width="48%">
+</div>
+
+Before training, the baseline model (tested via **Groq Llama API**) struggled to follow instructions, scoring only **~0.4** on Task 1 and **~0.2** on Task 5. After the RLVR pipeline, PeerGuard achieved near-perfect scores by learning to prioritize deterministic evidence over narrative vibes.
+
 Early runs failed because reward shaping over-penalized formatting misses and caused collapse.  
 We corrected this by using gentler shaping and prioritizing terminal correctness.
 

@@ -63,7 +63,7 @@ All numbers below are derived from live environment testing.
 
 ### Task 1 (Methodology Audit): SFT + GRPO Training Delta
 The agent must find planted flaws in the protocol text and output a strict JSON schema.
-*   **Baseline (Untrained Llama-3-8B):** `~0.4000` (Hallucinates flaws, fails JSON formatting).
+*   **Baseline (Groq Llama API - Untrained):** `~0.4000` (Hallucinates flaws, fails JSON formatting).
 *   **PeerGuard (SFT Warmstart + GRPO-Trained LoRA):** **`0.9999`** (+150% improvement). The agent was first warm-started via Supervised Fine-Tuning (SFT) to learn the JSON schema, and then optimized via GRPO to perfectly identify flaws.
 
 > [!IMPORTANT]
@@ -80,8 +80,19 @@ The agent must find planted flaws in the protocol text and output a strict JSON 
 
 ### Task 5 (FDA NDA Review): Zero-Shot Agent Pipeline
 A massive long-horizon capstone task. The agent must read 4 NDA sections, execute data verification code, flag concerns, and submit a final verdict.
-*   **Baseline:** `0.2000` (Fails to execute code, blindly approves the drug).
+*   **Baseline (Groq Llama API):** `0.2000` (Fails to execute code, blindly approves the drug).
 *   **PeerGuard Pipeline:** **`0.9500+`** (Successfully generates and executes verification scripts, catches all sub-task flaws, and accurately submits the REJECT verdict).
+
+---
+
+## 🧾 Training Verification (WandB & TRL Logs)
+
+To ensure full reproducibility and proof of training, we have included our training logs from the **SFT (Warmstart)** and **GRPO (RLVR)** phases.
+
+<div style="display: flex; gap: 10px;">
+  <img src="docs/sft_logs.png" alt="SFT Training Logs" width="48%">
+  <img src="docs/grpo_logs.png" alt="GRPO Training Logs" width="48%">
+</div>
 
 > [!CAUTION]
 > **The Surgisphere Scandal:** In 2020, *The Lancet* and *NEJM* retracted massive COVID-19 studies because the underlying data was fabricated. The papers looked perfect on the surface—only independent mathematical verification of the raw CSV numbers caught the fraud. PeerGuard's Task 5 replicates this by forcing the agent to execute code, rather than just reading the summary.

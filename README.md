@@ -1,3 +1,12 @@
+---
+title: PeerGuard Clinical Trial Auditor
+emoji: ⚕️
+colorFrom: blue
+colorTo: green
+sdk: docker
+pinned: false
+---
+
 # 🛡️ PeerGuard — Autonomous Clinical Trial Verification
 
 [![openenv](https://img.shields.io/badge/openenv-compatible-green)](https://github.com/openenv)

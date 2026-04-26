@@ -504,6 +504,7 @@ class ResearchIntegrityEnv:
             # Track flagged citation
             state.flags_raised.append({
                 "citation_id": citation_id,
+                "flaw_type": action.flaw_type or "",
                 "fabrication_type": action.flaw_type or "",
                 "evidence": action.description or "",
             })
@@ -575,6 +576,16 @@ class ResearchIntegrityEnv:
             )
             paper_visible = persona + paper_visible
 
+        rendered_flags = []
+        for f in state.flags_raised:
+            if f.get("citation_id") is not None:
+                fab_type = f.get("fabrication_type") or f.get("flaw_type") or "citation_flag"
+                rendered_flags.append(f"citation[{f.get('citation_id')}] {fab_type}")
+            else:
+                flaw_type = f.get("flaw_type") or f.get("concern_type") or "flag"
+                location = f.get("location") or "unspecified"
+                rendered_flags.append(f"{flaw_type} @ {location}")
+
         return Observation(
             task_id           = state.task_id,
             step              = state.step,
@@ -582,9 +593,7 @@ class ResearchIntegrityEnv:
             dataset_summary   = state.last_code_result if state.dataset_read else None,
             code_result       = state.last_code_result,
             last_reward       = last_reward,
-            flags_raised      = [
-                f"{f['flaw_type']} @ {f['location']}" for f in state.flags_raised
-            ],
+            flags_raised      = rendered_flags,
             available_actions = _available_actions(state),
             done              = state.done,
             info              = {"step": state.step, "max_steps": state.max_steps},

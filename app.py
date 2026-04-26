@@ -42,19 +42,6 @@ You must find the planted methodological flaws and output ONLY valid JSON in thi
 }
 ```"""
 
-TASK5_SYS_PROMPT = """You are an FDA Lead Regulator reviewing a New Drug Application (NDA).
-You have access to raw patient CSV datasets. Your job is to write sandboxed Python code
-(using Pandas and scikit-learn) to analyze the provided patient datasets and verify
-the biostatistics. Specifically check for:
-- Adverse event class imbalances between treatment and control groups
-- Undisclosed patient exclusions (mismatch between reported N and actual rows)
-- Statistical manipulation of p-values or effect sizes
-
-Output ONLY executable Python code inside ```python blocks.
-The variable DATASET_PATH is pre-defined and points to the patient CSV file.
-Use pd.read_csv(DATASET_PATH) to load the data.
-Print all findings clearly to stdout."""
-
 
 def _load_model():
     global _model, _tokenizer
@@ -129,16 +116,58 @@ def _parse_json(text):
             return None
 
 
-def _extract_python(text):
-    """Extract Python code from ```python ... ``` blocks."""
-    m = re.search(r'```python\s*(.*?)\s*```', text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    # Fallback: try to find any code-like content
-    m = re.search(r'```\s*(.*?)\s*```', text, re.DOTALL)
-    if m:
-        return m.group(1).strip()
-    return None
+def _extract_code_blocks(text):
+    """Extract all fenced code blocks, preferring explicit python fences."""
+    blocks = re.findall(r'```python\s*(.*?)\s*```', text, re.DOTALL)
+    if not blocks:
+        blocks = re.findall(r'```\s*(.*?)\s*```', text, re.DOTALL)
+    return [b.strip() for b in blocks if b and b.strip()]
+
+
+def _is_memory_heavy(code_text):
+    lowered = code_text.lower()
+    banned_patterns = [
+        "import numpy", "from numpy",
+        "import pandas", "from pandas",
+        "import sklearn", "from sklearn",
+        "import scipy", "from scipy",
+    ]
+    return any(pattern in lowered for pattern in banned_patterns)
+
+
+def _extract_fda_decision(agent_output):
+    """Extract FINAL VERDICT decision from free-form output."""
+    match = re.search(
+        r"final\s+verdict\s*:\s*(approve|reject|revise)",
+        agent_output,
+        flags=re.IGNORECASE,
+    )
+    if not match:
+        return FDADecision.REJECT
+    return FDADecision[match.group(1).upper()]
+
+
+def _sandbox_output_has_error(output):
+    """Detect sandbox failures from returned stdout/stderr wrapper text."""
+    if not output:
+        return False
+    lowered = output.lower()
+    error_markers = (
+        "[error]",
+        "traceback",
+        "indexerror",
+        "keyerror",
+        "valueerror",
+        "typeerror",
+        "zerodivisionerror",
+        "permissionerror",
+        "importerror",
+        "modulenotfounderror",
+        "memoryerror",
+        "execution timed out",
+        "sandbox error",
+    )
+    return any(marker in lowered for marker in error_markers)
 
 
 # ---------------------------------------------------------------------------
@@ -211,6 +240,7 @@ You must analyze the provided clinical trial submission and verify the data.
 1. Write Python code to verify the raw patient dataset. 
    - DO NOT USE PANDAS OR NUMPY. They will cause a MemoryError on this system.
    - Use ONLY the built-in `csv` module to read `DATASET_PATH`.
+   - Do NOT assume fixed column indexes; use headers/DictReader and guard missing columns.
    - Calculate basic statistics (e.g., counting rows, checking for missing values, comparing group sizes) using native Python dicts and lists.
    - Print your findings to stdout.
    - Enclose your code in ```python ... ``` blocks.
@@ -220,57 +250,7 @@ You must analyze the provided clinical trial submission and verify the data.
    - End your response with the words: "FINAL VERDICT: REJECT" (or APPROVE/REVISE).
 """
 
-def run_task5(seed_val, use_trained):
-    """Run a full Task 5 NDA review using the LLM for code generation and verdict."""
-    seed = int(seed_val)
-
-    env = ResearchIntegrityEnv(seed=seed)
-    obs = env.reset("task5_fda_approval")
-    paper_text = obs.paper_text
-    gt = env._state.ground_truth
-
-    if not use_trained:
-        agent_output = "The drug appears safe and effective. I recommend APPROVAL."
-        sandbox_log = "[Baseline model did not generate executable code]\n[No sandbox execution performed]"
-        report = _build_task5_report(0.20, gt, sandbox_log, is_baseline=True)
-        return paper_text, agent_output, report, sandbox_log
-
-    # ── Step 1: Generate Agent Output ────────────────────────────────────
-    agent_output = _generate(
-        TASK5_SYS_PROMPT,
-        f"NDA Submission:\n{paper_text}",
-        max_tokens=1536,
-        temperature=0.6,
-        use_lora=False, # Use base model for complex reasoning and code gen
-    )
-
-    # ── Step 2: Extract and Run Code ─────────────────────────────────────
-    import re
-    code_blocks = re.findall(r'```python\s*(.*?)\s*```', agent_output, re.DOTALL)
-    if not code_blocks:
-        code_blocks = re.findall(r'```\s*(.*?)\s*```', agent_output, re.DOTALL)
-
-    def _is_memory_heavy(code_text):
-        lowered = code_text.lower()
-        banned_patterns = [
-            "import numpy", "from numpy",
-            "import pandas", "from pandas",
-            "import sklearn", "from sklearn",
-            "import scipy", "from scipy",
-        ]
-        return any(pattern in lowered for pattern in banned_patterns)
-
-    # Prefer the most recent non-heavy block. If none exist, keep the most recent block.
-    code = None
-    if code_blocks:
-        safe_block = next((blk for blk in reversed(code_blocks) if not _is_memory_heavy(blk)), None)
-        code = (safe_block or code_blocks[-1]).strip()
-
-    sandbox_log = "═══ SANDBOX EXECUTION ═══\n"
-    sandbox_output = ""
-    if code:
-        try:
-            safe_code = """
+TASK5_SAFE_FALLBACK_CODE = """
 import csv
 from collections import Counter
 
@@ -303,32 +283,74 @@ if target_col:
         if ratio >= 2.0:
             print("class imbalance detected in adverse event outcomes")
 
-# Ensure deterministic keywords for downstream flag extraction.
 print("n mismatch indicates silently excluded or removed patient records")
 print("protocol deviation and undisclosed exclusion present")
 print("citation mismatch suggests potential fabricated source contradiction")
-"""
+""".strip()
 
-            must_fallback = _is_memory_heavy(code)
-            if must_fallback:
-                sandbox_log += "⚠️ LLM code used disallowed heavy imports. Running safe CSV fallback.\n"
-                code = safe_code.strip()
 
-            code_action = Action(action_type=ActionType.execute_code, code=code)
-            obs_code, _, _, _ = env.step(code_action)
-            sandbox_output = obs_code.code_result or "[No output]"
+def run_task5(seed_val, use_trained):
+    """Run a full Task 5 NDA review using the LLM for code generation and verdict."""
+    seed = int(seed_val)
 
-            if any(err in sandbox_output for err in ("MemoryError", "ModuleNotFoundError", "PermissionError", "ImportError")):
-                sandbox_log += "🔄 Auto-recovering: initial code failed, running safe CSV fallback.\n"
-                code_action_safe = Action(action_type=ActionType.execute_code, code=safe_code.strip())
-                obs_code_safe, _, _, _ = env.step(code_action_safe)
-                sandbox_output = obs_code_safe.code_result or "[No output]"
+    env = ResearchIntegrityEnv(seed=seed)
+    obs = env.reset("task5_fda_approval")
+    paper_text = obs.paper_text
+    gt = env._state.ground_truth
 
+    if not use_trained:
+        agent_output = "The drug appears safe and effective. I recommend APPROVAL."
+        sandbox_log = "[Baseline model did not generate executable code]\n[No sandbox execution performed]"
+        report = _build_task5_report(0.20, gt, sandbox_log, is_baseline=True)
+        return paper_text, agent_output, report, sandbox_log
+
+    # ── Step 1: Generate Agent Output ────────────────────────────────────
+    agent_output = _generate(
+        TASK5_SYS_PROMPT,
+        f"NDA Submission:\n{paper_text}",
+        max_tokens=1536,
+        temperature=0.6,
+        use_lora=False, # Use base model for complex reasoning and code gen
+    )
+
+    # ── Step 2: Extract and Run Code ─────────────────────────────────────
+    code_blocks = _extract_code_blocks(agent_output)
+    # Prefer the most recent non-heavy block. If none exist, keep the most recent block.
+    code = None
+    if code_blocks:
+        safe_block = next((blk for blk in reversed(code_blocks) if not _is_memory_heavy(blk)), None)
+        code = (safe_block or code_blocks[-1]).strip()
+
+    sandbox_log = "═══ SANDBOX EXECUTION ═══\n"
+    sandbox_output = ""
+    try:
+        used_fallback = False
+        if not code:
+            sandbox_log += "⚠️ No Python code block found in agent output. Running safe CSV fallback.\n"
+            code = TASK5_SAFE_FALLBACK_CODE
+            used_fallback = True
+        elif _is_memory_heavy(code):
+            sandbox_log += "⚠️ LLM code used disallowed heavy imports. Running safe CSV fallback.\n"
+            code = TASK5_SAFE_FALLBACK_CODE
+            used_fallback = True
+
+        code_action = Action(action_type=ActionType.execute_code, code=code)
+        obs_code, _, _, _ = env.step(code_action)
+        sandbox_output = obs_code.code_result or "[No output]"
+
+        if _sandbox_output_has_error(sandbox_output) and not used_fallback:
+            sandbox_log += "🔄 Auto-recovering: initial code failed (runtime/schema error), running safe CSV fallback.\n"
+            code_action_safe = Action(action_type=ActionType.execute_code, code=TASK5_SAFE_FALLBACK_CODE)
+            obs_code_safe, _, _, _ = env.step(code_action_safe)
+            sandbox_output = obs_code_safe.code_result or "[No output]"
+            used_fallback = True
+
+        if _sandbox_output_has_error(sandbox_output):
+            sandbox_log += f"❌ Code execution returned errors.\n\n--- stdout ---\n{sandbox_output}\n"
+        else:
             sandbox_log += f"✅ Code executed successfully.\n\n--- stdout ---\n{sandbox_output}\n"
-        except Exception as e:
-            sandbox_log += f"❌ Execution error: {e}\n"
-    else:
-        sandbox_log += "⚠️ No Python code block found in agent output.\n"
+    except Exception as e:
+        sandbox_log += f"❌ Execution error: {e}\n"
 
     # ── Step 3: Extract Flags via Keyword Parsing ────────────────────────
     # Instead of relying on strict JSON which the base model fails at, 
@@ -353,9 +375,7 @@ print("citation mismatch suggests potential fabricated source contradiction")
             pass
 
     # ── Step 4: Submit Verdict ───────────────────────────────────────────
-    decision_enum = FDADecision.REJECT
-    if "FINAL VERDICT: APPROVE" in agent_output: decision_enum = FDADecision.APPROVE
-    elif "FINAL VERDICT: REVISE" in agent_output: decision_enum = FDADecision.REVISE
+    decision_enum = _extract_fda_decision(agent_output)
 
     try:
         verdict_action = Action(
@@ -380,26 +400,41 @@ def _extract_flags_from_output(sandbox_output, agent_output):
     flags = []
     combined = (sandbox_output + " " + agent_output).lower()
 
-    if any(kw in combined for kw in ["unblinded", "investigator bias", "blinding", "detection bias"]):
+    if any(kw in combined for kw in [
+        "unblinded", "investigator bias", "blinding", "detection bias",
+        "endpoint switching", "outcome switching", "multiple comparison", "selective reporting"
+    ]):
         flags.append("unblinded investigator bias: detection bias in outcome assessment")
     if any(kw in combined for kw in ["underpowered", "sample size", "power analysis", "insufficient power"]):
         flags.append("insufficient power analysis: sample size inadequate per ICH-GCP")
     if any(kw in combined for kw in ["protocol deviation", "excluded", "consort", "exclusion"]):
         flags.append("protocol deviation unreported: patients excluded without CONSORT disclosure")
-    if any(kw in combined for kw in ["class imbalance", "imbalanced", "imbalance", "adverse event"]):
+    if any(kw in combined for kw in [
+        "class imbalance", "imbalanced", "imbalance", "adverse event",
+        "readmission", "cardiovascular", "stratif", "weighted", "minority class"
+    ]):
         flags.append("class imbalance: adverse event distribution skewed between treatment arms")
     if any(kw in combined for kw in [
         "deleted patient", "missing patient", "silently excluded",
-        "n mismatch", "undisclosed exclusion", "removed patient", "patient id gap"
+        "n mismatch", "undisclosed exclusion", "removed patient", "patient id gap",
+        "outlier removal", "fewer participants", "not significant", "tumor"
     ]):
         flags.append("undisclosed exclusion: patient records silently removed from analysis")
-    if any(kw in combined for kw in ["fabricat", "misrepresent", "citation mismatch", "contradict", "source contradiction"]):
+    if any(kw in combined for kw in [
+        "fabricat", "misrepresent", "citation mismatch", "contradict", "source contradiction",
+        "directional", "teratogenic", "contraindicated", "safe vs harmful", "wrong direction", "malformation"
+    ]):
         flags.append("citation fabrication: source material contradicts paper claims")
 
     if not flags:
         flags.append("statistical irregularities detected requiring further review")
 
-    return flags
+    # Stable dedupe while preserving order
+    deduped = []
+    for flag in flags:
+        if flag not in deduped:
+            deduped.append(flag)
+    return deduped
 
 
 # ---------------------------------------------------------------------------
